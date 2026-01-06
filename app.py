@@ -23,164 +23,164 @@ st.markdown("""
 <style>
 /* Das Haupt-Stadion */
 .racetrack { 
-background: linear-gradient(180deg, #2d3b26 0%, #3e4a38 100%);
-border: 8px solid #5d4037; 
-border-radius: 15px; 
-margin-bottom: 20px; 
-box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 10px 20px rgba(0,0,0,0.3); 
-position: relative; 
-overflow: hidden;
-/* Padding reduziert, da wir interne Buffer-Segmente nutzen */
-padding: 20px 0px 20px 0px; 
+    background: linear-gradient(180deg, #2d3b26 0%, #3e4a38 100%);
+    border: 8px solid #5d4037; 
+    border-radius: 15px; 
+    margin-bottom: 20px; 
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 10px 20px rgba(0,0,0,0.3); 
+    position: relative; 
+    overflow: hidden;
+    padding: 20px 0px 20px 0px; 
 }
 
 .lane { 
-border-bottom: 2px dashed rgba(255,255,255,0.1); 
-padding: 15px 0; 
-position: relative; 
-height: 120px; 
-z-index: 5; 
+    border-bottom: 2px dashed rgba(255,255,255,0.1); 
+    padding: 15px 0; 
+    position: relative; 
+    height: 120px; 
+    /* WICHTIG: Kein z-index hier, damit die Grid-Linien (z-index 1) DRÜBER liegen können */
 }
 
 .horse-container { 
-position: absolute; 
-top: 15px; 
-transition: left 0.5s cubic-bezier(0.25, 1, 0.5, 1); 
-z-index: 20; 
-text-align: center; 
-width: 100px; 
-transform: translateX(-50%); 
+    position: absolute; 
+    top: 15px; 
+    transition: left 0.5s cubic-bezier(0.25, 1, 0.5, 1); 
+    z-index: 20; /* Pferde sind ganz oben (über den Linien) */
+    text-align: center; 
+    width: 100px; 
+    transform: translateX(-50%); 
 }
 
 .race-img { 
-width: 70px; 
-height: 70px; 
-object-fit: cover; 
-border-radius: 50%; 
-border: 3px solid #fff; 
-box-shadow: 0 4px 8px rgba(0,0,0,0.5); 
-background-color: #fff;
+    width: 70px; 
+    height: 70px; 
+    object-fit: cover; 
+    border-radius: 50%; 
+    border: 3px solid #fff; 
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5); 
+    background-color: #fff;
 }
 
 .name-tag { 
-display: inline-block;
-font-size: 12px; 
-font-weight: bold; 
-color: #333; 
-background: rgba(255,255,255,0.9); 
-padding: 2px 8px; 
-border-radius: 12px; 
-margin-top: 5px; 
-white-space: nowrap;
-box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    display: inline-block;
+    font-size: 12px; 
+    font-weight: bold; 
+    color: #333; 
+    background: rgba(255,255,255,0.9); 
+    padding: 2px 8px; 
+    border-radius: 12px; 
+    margin-top: 5px; 
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
-/* --- NEUE GRID LINIEN STYLES --- */
+/* --- GRID SYSTEM --- */
+/* Z-Index Logik: Lane (0) < Grid (1-3) < Horse (20) */
 
-/* Standard Linie (1k, 2k, etc.) */
 .grid-line {
-position: absolute;
-top: 0; bottom: 0;
-border-left: 1px dashed rgba(255, 255, 255, 0.15); 
-z-index: 1; 
+    position: absolute;
+    top: 0; bottom: 0;
+    border-left: 1px dashed rgba(255, 255, 255, 0.25); 
+    z-index: 1; 
+    pointer-events: none;
 }
 
-/* Start Linie */
 .start-line-marker {
-position: absolute;
-top: 0; bottom: 0;
-border-left: 2px solid rgba(255, 255, 255, 0.5); 
-z-index: 2; 
+    position: absolute;
+    top: 0; bottom: 0;
+    border-left: 2px solid rgba(255, 255, 255, 0.6); 
+    z-index: 2; 
+    pointer-events: none;
 }
 
-/* 5k Linie (Fett) */
 .major-line {
-position: absolute;
-top: 0; bottom: 0;
-border-left: 3px solid rgba(255, 255, 255, 0.4); 
-z-index: 2; 
+    position: absolute;
+    top: 0; bottom: 0;
+    border-left: 3px solid rgba(255, 255, 255, 0.5); 
+    z-index: 2; 
+    pointer-events: none;
 }
 
-/* Ziel Linie (Schachbrett Muster) */
 .finish-line-marker {
-position: absolute;
-top: 0; bottom: 0;
-width: 15px;
-background-image: 
-linear-gradient(45deg, #000 25%, transparent 25%), 
-linear-gradient(-45deg, #000 25%, transparent 25%), 
-linear-gradient(45deg, transparent 75%, #000 75%), 
-linear-gradient(-45deg, transparent 75%, #000 75%);
-background-size: 10px 10px;
-background-color: rgba(255,255,255,0.9);
-z-index: 3;
-transform: translateX(-50%); /* Zentriert auf dem Punkt */
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 15px;
+    background-image: 
+    linear-gradient(45deg, #000 25%, transparent 25%), 
+    linear-gradient(-45deg, #000 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #000 75%), 
+    linear-gradient(-45deg, transparent 75%, #000 75%);
+    background-size: 10px 10px;
+    background-color: rgba(255,255,255,0.9);
+    z-index: 3;
+    transform: translateX(-50%);
+    pointer-events: none;
 }
 
 .grid-text {
-position: absolute;
-bottom: 5px;
-font-size: 10px;
-color: rgba(255, 255, 255, 0.5);
-transform: translateX(-50%); 
-font-family: sans-serif;
-font-weight: bold;
-white-space: nowrap;
+    position: absolute;
+    bottom: 5px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.6);
+    transform: translateX(-50%); 
+    font-family: sans-serif;
+    font-weight: bold;
+    white-space: nowrap;
 }
 
 .grid-text-major {
-font-size: 12px;
-color: rgba(255, 255, 255, 0.9);
-bottom: 5px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 1.0);
+    bottom: 5px;
 }
 
 .date-display {
-position: absolute;
-top: 15px;
-right: 20px;
-background-color: rgba(0, 0, 0, 0.6);
-color: #fff;
-padding: 4px 10px;
-border-radius: 4px;
-font-size: 12px;
-font-family: monospace;
-z-index: 100;
-border: 1px solid rgba(255,255,255,0.2);
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+    z-index: 100;
+    border: 1px solid rgba(255,255,255,0.2);
 }
 
 .metric-card { 
-background: linear-gradient(135deg, #f0f2f6 0%, #ffffff 100%);
-padding: 20px; 
-border-radius: 15px; 
-text-align: left; 
-margin-bottom: 10px; 
-box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-border: 1px solid #e0e0e0;
-height: 100%; 
+    background: linear-gradient(135deg, #f0f2f6 0%, #ffffff 100%);
+    padding: 20px; 
+    border-radius: 15px; 
+    text-align: left; 
+    margin-bottom: 10px; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    border: 1px solid #e0e0e0;
+    height: 100%; 
 }
 
 .leader-row {
-display: flex;
-justify-content: space-between;
-align-items: center;
-padding: 8px 0;
-border-bottom: 1px solid #eee;
-font-size: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
 }
 .leader-row:last-child { border-bottom: none; }
 
 .rank-badge {
-background-color: #3e4a38;
-color: white;
-border-radius: 50%;
-width: 24px;
-height: 24px;
-text-align: center;
-font-size: 12px;
-line-height: 24px;
-display: inline-block;
-margin-right: 10px;
-font-weight: bold;
+    background-color: #3e4a38;
+    color: white;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    text-align: center;
+    font-size: 12px;
+    line-height: 24px;
+    display: inline-block;
+    margin-right: 10px;
+    font-weight: bold;
 }
 
 .player-info { display: flex; flex-direction: column; }
@@ -189,26 +189,26 @@ font-weight: bold;
 .score-display { font-size: 16px; font-weight: bold; color: #3e4a38; }
 
 .whatsapp-btn {
-display: inline-flex;
-align-items: center;
-justify-content: center;
-background-color: #128C7E; 
-color: white !important;
-font-weight: bold;
-padding: 10px 20px;
-border-radius: 8px;
-text-decoration: none !important; 
-width: 100%;
-margin-top: 10px;
-box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-font-family: sans-serif;
-transition: background-color 0.3s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #128C7E; 
+    color: white !important;
+    font-weight: bold;
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none !important; 
+    width: 100%;
+    margin-top: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    font-family: sans-serif;
+    transition: background-color 0.3s;
 }
 .whatsapp-btn:hover {
-background-color: #075E54;
-box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-color: white !important;
-text-decoration: none !important;
+    background-color: #075E54;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    color: white !important;
+    text-decoration: none !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -303,18 +303,13 @@ def render_track_html(current_df, display_date=None):
     track_html = '<div class="racetrack">'
     
     # --- GRID BERECHNUNG (12 SEGMENTE) ---
-    # Wir teilen 100% durch 12.
-    # Start (0k) ist bei 1/12.
-    # Finish (10k) ist bei 11/12.
     total_segments = 12
     segment_width = 100.0 / total_segments
     
-    # Wir loopen von 0k bis 10k (also 11 Linien)
+    # Loop von 0k bis 10k
     for k in range(0, 11): 
-        # Position ist k+1 Segmente verschoben (da links ein Buffer ist)
         pos_percent = (k + 1) * segment_width
         
-        # Styles bestimmen
         label = f"{k}k"
         css_class = "grid-line"
         text_class = "grid-text"
@@ -324,7 +319,7 @@ def render_track_html(current_df, display_date=None):
             css_class = "start-line-marker"
             text_class = "grid-text grid-text-major"
         elif k == 5:
-            css_class = "major-line" # Dicke Linie für 5k
+            css_class = "major-line" 
             text_class = "grid-text grid-text-major"
         elif k == 10:
             label = "Finish"
@@ -347,12 +342,8 @@ def render_track_html(current_df, display_date=None):
         user_row = current_df[current_df['Name'] == name]
         raw_score = user_row.iloc[0]['Pushups'] if not user_row.empty else 0
         
-        # --- PFERDE POSITION BERECHNUNG ---
-        # 0 Pushups = 1. Segment (Start)
-        # 10000 Pushups = 11. Segment (Finish)
-        # Die Strecke dazwischen sind genau 10 Segmente.
-        start_offset = segment_width # 8.33%
-        playable_range = segment_width * 10 # 83.33%
+        start_offset = segment_width
+        playable_range = segment_width * 10 
         
         progress_ratio = min(1.0, raw_score / GOAL)
         final_pos_percent = start_offset + (progress_ratio * playable_range)
@@ -378,7 +369,7 @@ def render_track_html(current_df, display_date=None):
 # --- MAIN APP ---
 st.title("🐎 10k Pushup Derby")
 
-# Platzhalter definieren
+# Platzhalter
 share_placeholder = st.empty()
 race_placeholder = st.empty()
 skip_btn_placeholder = st.empty()
@@ -394,11 +385,10 @@ if df_totals.empty:
     st.warning("Warte auf Daten...")
     st.stop()
 
-# --- SUCCESS & SHARE LOGIC (NACH DATEN-LADEN) ---
+# --- SUCCESS & SHARE LOGIC ---
 if 'last_log' in st.session_state:
     log_data = st.session_state.last_log
     
-    # Leaderboard String bauen
     df_sorted_for_wa = df_totals.sort_values('Pushups', ascending=False)
     leaderboard_text = ""
     rank = 1
@@ -406,7 +396,6 @@ if 'last_log' in st.session_state:
         leaderboard_text += f"{rank}. {row['Name']}: {int(row['Pushups'])}\n"
         rank += 1
     
-    # WhatsApp Text
     wa_text = f"🐎 *Pushup Update!*\n*{log_data['name']}* hat gerade *{log_data['amount']}* Pushups gemacht! 💪\n\n🏆 *Aktueller Stand:*\n{leaderboard_text}\n🔗 https://pushupchallenge-zd5abepwkexdjtpsfbyzf6.streamlit.app/"
     wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_text)}"
     
@@ -417,9 +406,8 @@ if 'last_log' in st.session_state:
             📢 In WhatsApp-Gruppe teilen
         </a>
         """, unsafe_allow_html=True)
-        st.write("") # Abstand
+        st.write("")
     
-    # State löschen
     del st.session_state.last_log
 
 # --- ANIMATION LOGIC ---
@@ -470,7 +458,7 @@ skip_btn_placeholder.empty()
 today_str = datetime.now().strftime('%d.%m.%Y')
 race_placeholder.markdown(render_track_html(df_totals, today_str), unsafe_allow_html=True)
 
-# --- 3. EINGABE FORMULAR ---
+# --- EINGABE FORMULAR ---
 with st.form("log_form", clear_on_submit=True):
     col_a, col_b = st.columns(2)
     names_list = ["Kevin", "Sämi", "Eric", "Elia"]
@@ -489,7 +477,7 @@ with st.form("log_form", clear_on_submit=True):
                 st.session_state.last_log = {'name': who, 'amount': amount}
                 st.rerun()
 
-# --- DATEN VORBEREITUNG FÜR STATS ---
+# --- STATS ---
 df_sorted = df_totals.sort_values('Pushups', ascending=False)
 leader = df_sorted.iloc[0]
 remaining = GOAL - leader['Pushups']
@@ -506,7 +494,7 @@ if not df_logs.empty and 'Timestamp' in df_logs.columns:
 
 col1, col2 = st.columns(2)
 
-# LINKE KARTE: Leaderboard mit Ø Stats & Prognose
+# LINKE KARTE
 with col1:
     leaderboard_html = '<div class="metric-card">'
     leaderboard_html += '<h3 style="margin:0; font-size:16px; color:#666; margin-bottom:15px;">🏆 Leaderboard</h3>'
@@ -547,7 +535,7 @@ with col1:
     leaderboard_html += '</div>'
     st.markdown(leaderboard_html, unsafe_allow_html=True)
 
-# RECHTE KARTE: Renn-Status mit Total Stats
+# RECHTE KARTE
 with col2:
     st.markdown(f"""
 <div class="metric-card" style="text-align:center;">
@@ -568,7 +556,7 @@ with col2:
 </div>
 """, unsafe_allow_html=True)
 
-# 4. ADMIN / BEARBEITEN BEREICH
+# 4. ADMIN
 st.divider()
 with st.expander("📝 Protokoll bearbeiten / Fehler korrigieren"):
     st.warning("Achtung: Hier kannst du Einträge löschen oder ändern. Das ändert den Spielstand direkt!")
