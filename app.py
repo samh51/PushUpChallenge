@@ -7,7 +7,6 @@ from google.oauth2.service_account import Credentials
 
 # --- CONFIGURATION ---
 GOAL = 10000
-# Your Sheet ID (This is safe to be in the code)
 SHEET_ID = "1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM"
 
 # 🖼️ IMAGE CONFIGURATION
@@ -34,14 +33,13 @@ st.markdown("""
 # --- DIRECT CONNECTION FUNCTION ---
 def get_google_sheet_client():
     try:
-        # 🟢 EXACT MATCH: We look ONLY for the [service_account] section
+        # Check for [service_account] section specifically
         if "service_account" not in st.secrets:
             st.error("Secrets Error: The [service_account] section is missing from secrets.toml.")
             st.stop()
             
         secrets = st.secrets["service_account"]
 
-        # Create the credentials object
         creds = Credentials.from_service_account_info(
             secrets,
             scopes=["https://www.googleapis.com/auth/spreadsheets"],
@@ -91,6 +89,7 @@ def update_data(name, new_reps):
 def render_track_html(current_df):
     if current_df.empty: return ""
     
+    # Ensure numeric
     if 'Pushups' in current_df.columns:
         current_df['Pushups'] = pd.to_numeric(current_df['Pushups'], errors='coerce').fillna(0)
     
@@ -113,15 +112,17 @@ def render_track_html(current_df):
         else:
             current_icon = IMG_MIDDLE
             
+        # 🟢 FIX: We flush this HTML to the left (no indentation)
+        # to ensure it renders as graphics, not code.
         track_html += f"""
-        <div class="lane">
-            <div class="finish-line"></div>
-            <div class="horse-container" style="left: {progress}%;">
-                <img src="{current_icon}" class="race-img">
-                <span class="name-tag">{name} ({int(raw_score)})</span>
-            </div>
-        </div>
-        """
+<div class="lane">
+    <div class="finish-line"></div>
+    <div class="horse-container" style="left: {progress}%;">
+        <img src="{current_icon}" class="race-img">
+        <span class="name-tag">{name} ({int(raw_score)})</span>
+    </div>
+</div>
+"""
     track_html += '</div>'
     return track_html
 
