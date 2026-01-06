@@ -4,9 +4,13 @@ from streamlit_gsheets import GSheetsConnection
 
 # --- CONFIGURATION ---
 GOAL = 10000
-
-# 🔴 PASTE YOUR GOOGLE SHEET LINK HERE:
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM/edit?gid=0#gid=0"
+
+# 🖼️ IMAGE CONFIGURATION (Replace these with direct image links if needed)
+# Note: These must be direct links to images (ending in .png, .jpg, .gif)
+IMG_FIRST  = "https://media.istockphoto.com/id/1007282190/vector/horse-power-flame.jpg?s=612x612&w=0&k=20&c=uHnnvMTzaatfPblbFHdfhuJT7qLwsARF90oqH0dMCjA=" # Fire/Fast Horse placeholder
+IMG_MIDDLE = "https://t3.ftcdn.net/jpg/02/11/11/34/360_F_211113432_Gb89carZwwGuJA6lmux3NBU9tes3efMk.jpg" # Running Horse placeholder
+IMG_LAST   = "https://i.etsystatic.com/28959621/r/il/e2cf08/5908874106/il_570xN.5908874106_80rl.jpg" # Donkey placeholder
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Pushup Derby", page_icon="🐎", layout="centered")
@@ -25,24 +29,33 @@ st.markdown("""
         border-bottom: 2px dashed #6b7c62;
         padding: 15px 0;
         position: relative;
-        height: 60px;
+        height: 70px; /* Increased height for images */
     }
     .horse-container {
         position: absolute;
-        top: -5px;
-        font-size: 30px;
-        white-space: nowrap;
+        top: -10px;
         transition: left 1s ease-in-out;
         z-index: 10;
+        text-align: center;
+        width: 60px; /* Container width */
+    }
+    /* NEW: Style for the Race Icons */
+    .race-img {
+        width: 50px;
+        height: 50px;
+        object-fit: contain;
+        filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5));
     }
     .name-tag {
-        font-size: 14px;
+        display: block; /* Force name below image */
+        font-size: 11px;
         font-weight: bold;
         color: white;
         background: rgba(0,0,0,0.6);
-        padding: 4px 8px;
-        border-radius: 6px;
-        margin-left: -5px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        margin-top: -5px;
+        white-space: nowrap;
     }
     .finish-line {
         position: absolute;
@@ -89,13 +102,16 @@ st.title("🐎 10k Pushup Derby")
 df = get_data()
 
 if df.empty:
-    st.warning("Could not read data. Check your SHEET_URL.")
+    st.warning("Could not read data.")
     st.stop()
 
 # 1. THE RACE TRACK VISUALIZATION
 st.subheader("Current Standings")
 
+# Calculate Ranks
 df_sorted = df.sort_values('Pushups', ascending=False)
+leader_name = df_sorted.iloc[0]['Name']
+last_place_name = df_sorted.iloc[-1]['Name']
 
 # Start the container
 track_html = '<div class="racetrack">'
@@ -103,13 +119,22 @@ track_html = '<div class="racetrack">'
 for index, row in df.iterrows(): 
     raw_score = row['Pushups']
     progress = min(90, (raw_score / GOAL) * 100)
+    name = row['Name']
     
-    # ⚠️ IMPORTANT: The lines below must NOT be indented in the Python string
+    # --- ICON LOGIC ---
+    if name == leader_name:
+        current_icon = IMG_FIRST
+    elif name == last_place_name:
+        current_icon = IMG_LAST
+    else:
+        current_icon = IMG_MIDDLE
+    
     track_html += f"""
 <div class="lane">
     <div class="finish-line"></div>
     <div class="horse-container" style="left: {progress}%;">
-        🐎 <span class="name-tag">{row['Name']} ({int(raw_score)})</span>
+        <img src="{current_icon}" class="race-img">
+        <span class="name-tag">{name} ({int(raw_score)})</span>
     </div>
 </div>
 """
@@ -117,7 +142,7 @@ for index, row in df.iterrows():
 track_html += '</div>'
 st.markdown(track_html, unsafe_allow_html=True)
 
-# 2. STATS & LEADERBOARD
+# 2. STATS
 leader = df_sorted.iloc[0]
 remaining = GOAL - leader['Pushups']
 
@@ -127,7 +152,6 @@ with col1:
     <div class="metric-card">
         <h3>🏆 Leader</h3>
         <h2>{leader['Name']}</h2>
-        <p>{int(leader['Pushups'])} reps</p>
     </div>
     """, unsafe_allow_html=True)
 with col2:
@@ -135,13 +159,8 @@ with col2:
     <div class="metric-card">
         <h3>🏁 To Win</h3>
         <h2>{int(remaining) if remaining > 0 else 0}</h2>
-        <p>reps needed</p>
     </div>
     """, unsafe_allow_html=True)
-
-if remaining <= 0:
-    st.balloons()
-    st.success(f"🎉 RACE OVER! {leader['Name']} HAS WON!")
 
 # 3. INPUT FORM
 st.divider()
@@ -161,5 +180,3 @@ with st.form("log_form", clear_on_submit=True):
             update_data(df, who, amount)
         st.success(f"Added {amount} pushups for {who}!")
         st.rerun()
-
-st.caption("Data is live-synced with Google Sheets.")
