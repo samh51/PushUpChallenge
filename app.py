@@ -33,13 +33,11 @@ st.markdown("""
 # --- DIRECT CONNECTION FUNCTION ---
 def get_google_sheet_client():
     try:
-        # Check for [service_account] section specifically
         if "service_account" not in st.secrets:
             st.error("Secrets Error: The [service_account] section is missing from secrets.toml.")
             st.stop()
             
         secrets = st.secrets["service_account"]
-
         creds = Credentials.from_service_account_info(
             secrets,
             scopes=["https://www.googleapis.com/auth/spreadsheets"],
@@ -89,7 +87,6 @@ def update_data(name, new_reps):
 def render_track_html(current_df):
     if current_df.empty: return ""
     
-    # Ensure numeric
     if 'Pushups' in current_df.columns:
         current_df['Pushups'] = pd.to_numeric(current_df['Pushups'], errors='coerce').fillna(0)
     
@@ -112,8 +109,6 @@ def render_track_html(current_df):
         else:
             current_icon = IMG_MIDDLE
             
-        # 🟢 FIX: We flush this HTML to the left (no indentation)
-        # to ensure it renders as graphics, not code.
         track_html += f"""
 <div class="lane">
     <div class="finish-line"></div>
@@ -142,24 +137,42 @@ if df_totals.empty:
     st.warning("Waiting for data...")
     st.stop()
 
-# --- ANIMATION LOGIC ---
+# --- ANIMATION LOGIC (UPDATED) ---
 if not st.session_state.has_animated and not df_logs.empty:
-    race_df = df_totals.copy()
-    race_df['Pushups'] = 0
-    race_placeholder.markdown(render_track_html(race_df), unsafe_allow_html=True)
-    time.sleep(0.5)
+    
+    # 1. Initialize local scoreboard at 0
+    all_names = ["Kevin", "Sämi", "Eric", "Elia"]
+    race_scores = {name: 0 for name in all_names}
+    
+    # Show Starting Line (everyone at 0)
+    initial_df = pd.DataFrame([{'Name': n, 'Pushups': 0} for n in all_names])
+    race_placeholder.markdown(render_track_html(initial_df), unsafe_allow_html=True)
+    time.sleep(1.0) # Pause at start
+    
+    # 2. Sort logs chronologically to ensure correct replay order
+    if 'Timestamp' in df_logs.columns:
+        df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
+        df_logs = df_logs.sort_values('Timestamp')
     
     if 'Amount' in df_logs.columns:
         df_logs['Amount'] = pd.to_numeric(df_logs['Amount'], errors='coerce').fillna(0)
         
-        step = max(1, int(len(df_logs)/25))
-        for i in range(0, len(df_logs), step):
-            current_slice = df_logs.iloc[:i+1]
-            current_totals = current_slice.groupby('Name')['Amount'].sum().reset_index()
-            current_totals.columns = ['Name', 'Pushups']
-            frame_df = pd.merge(race_df[['Name']], current_totals, on='Name', how='left').fillna(0)
+        # 3. REPLAY LOOP: One update per log entry
+        for index, row in df_logs.iterrows():
+            name = row['Name']
+            amount = row['Amount']
+            
+            # Update the specific horse
+            if name in race_scores:
+                race_scores[name] += amount
+            
+            # Create a dataframe for the renderer
+            frame_data = [{'Name': n, 'Pushups': s} for n, s in race_scores.items()]
+            frame_df = pd.DataFrame(frame_data)
+            
+            # Render and Wait
             race_placeholder.markdown(render_track_html(frame_df), unsafe_allow_html=True)
-            time.sleep(0.03)
+            time.sleep(0.5) # The requested delay per update
 
     st.session_state.has_animated = True
 
