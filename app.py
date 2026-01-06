@@ -19,152 +19,165 @@ st.set_page_config(page_title="Pushup Derby", page_icon="🐎", layout="centered
 
 # --- PROFI DESIGN CSS ---
 st.markdown("""
-    <style>
-    /* Das Haupt-Stadion */
-    .racetrack { 
-        background: linear-gradient(180deg, #2d3b26 0%, #3e4a38 100%);
-        border: 8px solid #5d4037; 
-        border-radius: 15px; 
-        margin-bottom: 20px; 
-        box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 10px 20px rgba(0,0,0,0.3); 
-        position: relative; 
-        overflow: hidden;
-        padding: 20px 60px 20px 60px; 
-    }
+<style>
+/* Das Haupt-Stadion */
+.racetrack { 
+background: linear-gradient(180deg, #2d3b26 0%, #3e4a38 100%);
+border: 8px solid #5d4037; 
+border-radius: 15px; 
+margin-bottom: 20px; 
+box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 10px 20px rgba(0,0,0,0.3); 
+position: relative; 
+overflow: hidden;
+padding: 20px 60px 20px 60px; 
+}
 
-    .lane { 
-        border-bottom: 2px dashed rgba(255,255,255,0.15); 
-        padding: 15px 0; 
-        position: relative; 
-        height: 120px; 
-        z-index: 5; 
-    }
+.lane { 
+border-bottom: 2px dashed rgba(255,255,255,0.15); 
+padding: 15px 0; 
+position: relative; 
+height: 120px; 
+z-index: 5; 
+}
 
-    .horse-container { 
-        position: absolute; 
-        top: 15px; 
-        transition: left 0.5s cubic-bezier(0.25, 1, 0.5, 1); 
-        z-index: 20; 
-        text-align: center; 
-        width: 100px; 
-        transform: translateX(-50%); 
-    }
+.horse-container { 
+position: absolute; 
+top: 15px; 
+transition: left 0.5s cubic-bezier(0.25, 1, 0.5, 1); 
+z-index: 20; 
+text-align: center; 
+width: 100px; 
+transform: translateX(-50%); 
+}
 
-    .race-img { 
-        width: 70px; 
-        height: 70px; 
-        object-fit: cover; 
-        border-radius: 50%; 
-        border: 3px solid #fff; 
-        box-shadow: 0 4px 8px rgba(0,0,0,0.5); 
-        background-color: #fff;
-    }
+.race-img { 
+width: 70px; 
+height: 70px; 
+object-fit: cover; 
+border-radius: 50%; 
+border: 3px solid #fff; 
+box-shadow: 0 4px 8px rgba(0,0,0,0.5); 
+background-color: #fff;
+}
 
-    .name-tag { 
-        display: inline-block;
-        font-size: 12px; 
-        font-weight: bold; 
-        color: #333; 
-        background: rgba(255,255,255,0.9); 
-        padding: 2px 8px; 
-        border-radius: 12px; 
-        margin-top: 5px; 
-        white-space: nowrap;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-    }
+.name-tag { 
+display: inline-block;
+font-size: 12px; 
+font-weight: bold; 
+color: #333; 
+background: rgba(255,255,255,0.9); 
+padding: 2px 8px; 
+border-radius: 12px; 
+margin-top: 5px; 
+white-space: nowrap;
+box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
 
-    .start-line {
-        position: absolute;
-        left: 0; top: 0; bottom: 0; width: 4px;
-        background-color: rgba(255,255,255,0.8);
-        z-index: 15;
-        box-shadow: 0 0 5px rgba(255,255,255,0.5);
-    }
+.start-line {
+position: absolute;
+left: 0; top: 0; bottom: 0; width: 4px;
+background-color: rgba(255,255,255,0.8);
+z-index: 15;
+box-shadow: 0 0 5px rgba(255,255,255,0.5);
+}
 
-    .finish-line { 
-        position: absolute; 
-        right: 0; top: 0; bottom: 0; width: 20px; 
-        background-image: 
-            linear-gradient(45deg, #000 25%, transparent 25%), 
-            linear-gradient(-45deg, #000 25%, transparent 25%), 
-            linear-gradient(45deg, transparent 75%, #000 75%), 
-            linear-gradient(-45deg, transparent 75%, #000 75%);
-        background-size: 10px 10px;
-        background-color: #fff;
-        opacity: 0.9; 
-        z-index: 15; 
-        box-shadow: -2px 0 5px rgba(0,0,0,0.3);
-    }
+.finish-line { 
+position: absolute; 
+right: 0; top: 0; bottom: 0; width: 20px; 
+background-image: 
+linear-gradient(45deg, #000 25%, transparent 25%), 
+linear-gradient(-45deg, #000 25%, transparent 25%), 
+linear-gradient(45deg, transparent 75%, #000 75%), 
+linear-gradient(-45deg, transparent 75%, #000 75%);
+background-size: 10px 10px;
+background-color: #fff;
+opacity: 0.9; 
+z-index: 15; 
+box-shadow: -2px 0 5px rgba(0,0,0,0.3);
+}
 
-    .milestone-line {
-        position: absolute;
-        top: 0; bottom: 0;
-        border-left: 1px solid rgba(255, 255, 255, 0.1); 
-        z-index: 1; 
-    }
-    .milestone-text {
-        position: absolute;
-        bottom: 5px;
-        font-size: 9px;
-        color: rgba(255, 255, 255, 0.3);
-        transform: translateX(-50%); 
-        font-family: sans-serif;
-    }
+.milestone-line {
+position: absolute;
+top: 0; bottom: 0;
+border-left: 1px solid rgba(255, 255, 255, 0.1); 
+z-index: 1; 
+}
+.milestone-text {
+position: absolute;
+bottom: 5px;
+font-size: 9px;
+color: rgba(255, 255, 255, 0.3);
+transform: translateX(-50%); 
+font-family: sans-serif;
+}
 
-    .date-display {
-        position: absolute;
-        top: 15px;
-        right: 20px;
-        background-color: rgba(0, 0, 0, 0.6);
-        color: #fff;
-        padding: 4px 10px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-family: monospace;
-        z-index: 100;
-        border: 1px solid rgba(255,255,255,0.2);
-    }
-    
-    .metric-card { 
-        background: linear-gradient(135deg, #f0f2f6 0%, #ffffff 100%);
-        padding: 20px; 
-        border-radius: 15px; 
-        text-align: left; 
-        margin-bottom: 10px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        border: 1px solid #e0e0e0;
-        height: 100%; 
-    }
-    
-    .leader-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 0;
-        border-bottom: 1px solid #eee;
-        font-size: 14px;
-    }
-    .leader-row:last-child { border-bottom: none; }
-    
-    .rank-badge {
-        background-color: #3e4a38;
-        color: white;
-        border-radius: 50%;
-        width: 24px;
-        height: 24px;
-        text-align: center;
-        font-size: 12px;
-        line-height: 24px;
-        display: inline-block;
-        margin-right: 10px;
-        font-weight: bold;
-    }
-    
-    .player-info { display: flex; flex-direction: column; }
-    .player-name { font-weight: bold; color: #333; }
-    .forecast-date { font-size: 11px; color: #888; margin-top: 2px; }
-    .score-display { font-size: 16px; font-weight: bold; color: #3e4a38; }
-    </style>
+.date-display {
+position: absolute;
+top: 15px;
+right: 20px;
+background-color: rgba(0, 0, 0, 0.6);
+color: #fff;
+padding: 4px 10px;
+border-radius: 4px;
+font-size: 12px;
+font-family: monospace;
+z-index: 100;
+border: 1px solid rgba(255,255,255,0.2);
+}
+
+.metric-card { 
+background: linear-gradient(135deg, #f0f2f6 0%, #ffffff 100%);
+padding: 20px; 
+border-radius: 15px; 
+text-align: left; 
+margin-bottom: 10px; 
+box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+border: 1px solid #e0e0e0;
+height: 100%; 
+}
+
+.leader-row {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 8px 0;
+border-bottom: 1px solid #eee;
+font-size: 14px;
+}
+.leader-row:last-child { border-bottom: none; }
+
+.rank-badge {
+background-color: #3e4a38;
+color: white;
+border-radius: 50%;
+width: 24px;
+height: 24px;
+text-align: center;
+font-size: 12px;
+line-height: 24px;
+display: inline-block;
+margin-right: 10px;
+font-weight: bold;
+}
+
+.player-info { display: flex; flex-direction: column; }
+.player-name { font-weight: bold; color: #333; }
+.forecast-date { font-size: 11px; color: #888; margin-top: 2px; }
+.score-display { font-size: 16px; font-weight: bold; color: #3e4a38; }
+
+/* Button Styling für Skip */
+.stButton > button {
+width: 100%;
+border-radius: 10px;
+background-color: #f0f2f6;
+border: 1px solid #d0d2d6;
+color: #333;
+}
+.stButton > button:hover {
+background-color: #e0e2e6;
+border-color: #c0c2c6;
+}
+</style>
 """, unsafe_allow_html=True)
 
 # --- VERBINDUNGS-FUNKTIONEN ---
@@ -261,7 +274,7 @@ def render_track_html(current_df, display_date=None):
         pct = (m / GOAL) * 100
         track_html += f"""
 <div class="milestone-line" style="left: {pct}%;">
-    <span class="milestone-text">{int(m/1000)}k</span>
+<span class="milestone-text">{int(m/1000)}k</span>
 </div>
 """
     # Datum
@@ -284,24 +297,23 @@ def render_track_html(current_df, display_date=None):
             
         track_html += f"""
 <div class="lane">
-    <div class="start-line"></div>
-    <div class="finish-line"></div>
-    <div class="horse-container" style="left: {progress}%;">
-        <img src="{current_icon}" class="race-img">
-        <span class="name-tag">{name} ({int(raw_score)})</span>
-    </div>
+<div class="start-line"></div>
+<div class="finish-line"></div>
+<div class="horse-container" style="left: {progress}%;">
+<img src="{current_icon}" class="race-img">
+<span class="name-tag">{name} ({int(raw_score)})</span>
+</div>
 </div>
 """
     track_html += '</div>'
     return track_html
 
 # --- MAIN APP ---
-# Sidebar Option für schnelles Eintragen
-skip_animation = st.sidebar.checkbox("⏩ Animation überspringen", value=False)
-
 st.title("🐎 10k Pushup Derby")
 
+# Platzhalter definieren
 race_placeholder = st.empty()
+skip_btn_placeholder = st.empty()
 
 if 'has_animated' not in st.session_state:
     st.session_state.has_animated = False
@@ -315,9 +327,17 @@ if df_totals.empty:
     st.stop()
 
 # --- ANIMATION LOGIC ---
-# Nur animieren, wenn NICHT übersprungen wird UND noch nicht animiert wurde
-if not skip_animation and not st.session_state.has_animated and not df_logs.empty:
+if not st.session_state.has_animated and not df_logs.empty:
     
+    # Skip-Button anzeigen
+    with skip_btn_placeholder:
+        # Wenn der Button geklickt wird, lädt Streamlit neu.
+        # Wir müssen also sofort den Status setzen, damit beim Neuladen die Animation übersprungen wird.
+        if st.button("⏩ Animation überspringen (Sofort zum Ergebnis)"):
+            st.session_state.has_animated = True
+            st.rerun()
+
+    # Initialisierung
     all_names = ["Kevin", "Sämi", "Eric", "Elia"]
     race_scores = {name: 0 for name in all_names}
     
@@ -333,6 +353,10 @@ if not skip_animation and not st.session_state.has_animated and not df_logs.empt
         df_logs['Amount'] = pd.to_numeric(df_logs['Amount'], errors='coerce').fillna(0)
         
         for index, row in df_logs.iterrows():
+            # Checken, ob wir animieren sollen (falls durch Klick unterbrochen wird)
+            if st.session_state.has_animated:
+                break
+                
             name = row['Name']
             amount = row['Amount']
             current_ts = row['Timestamp']
@@ -345,9 +369,12 @@ if not skip_animation and not st.session_state.has_animated and not df_logs.empt
             frame_df = pd.DataFrame(frame_data)
             
             race_placeholder.markdown(render_track_html(frame_df, display_date=date_str), unsafe_allow_html=True)
-            time.sleep(0.3) # Etwas schneller für besseren Flow
+            time.sleep(0.3) 
 
     st.session_state.has_animated = True
+    
+# Button entfernen, sobald die Animation fertig (oder übersprungen) ist
+skip_btn_placeholder.empty()
 
 # --- FINAL STATE ---
 today_str = datetime.now().strftime('%d.%m.%Y')
@@ -395,7 +422,7 @@ with col1:
         else:
             forecast_str = "😴 Noch nicht gestartet"
 
-        # FIX: KEINE Einrückung beim HTML String
+        # HTML OHNE Einrückung am Anfang der Zeile
         leaderboard_html += f"""
 <div class="leader-row">
 <div style="display:flex; align-items:center;">
@@ -415,7 +442,7 @@ with col1:
 
 # RECHTE KARTE: Renn-Statistik
 with col2:
-    # FIX: Auch hier KEINE Einrückung beim HTML String
+    # HTML OHNE Einrückung
     st.markdown(f"""
 <div class="metric-card" style="text-align:center;">
 <h3 style="margin:0; font-size:16px; color:#666;">📊 Renn-Status</h3>
