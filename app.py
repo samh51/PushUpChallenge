@@ -353,8 +353,8 @@ if 'last_log' in st.session_state:
         leaderboard_text += f"{rank}. {row['Name']}: {int(row['Pushups'])}\n"
         rank += 1
     
-    # WhatsApp Text zusammenbauen
-    wa_text = f"🐎 *Pushup Update!*\n*{log_data['name']}* hat gerade *{log_data['amount']}* Pushups gemacht! 💪\n\n🏆 *Aktueller Stand:*\n{leaderboard_text}\n🔗 https://pushup-race.streamlit.app"
+    # WhatsApp Text zusammenbauen mit dem RICHTIGEN LINK
+    wa_text = f"🐎 *Pushup Update!*\n*{log_data['name']}* hat gerade *{log_data['amount']}* Pushups gemacht! 💪\n\n🏆 *Aktueller Stand:*\n{leaderboard_text}\n🔗 https://pushupchallenge-zd5abepwkexdjtpsfbyzf6.streamlit.app/"
     wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_text)}"
     
     with share_placeholder.container():
