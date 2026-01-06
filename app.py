@@ -30,11 +30,12 @@ margin-bottom: 20px;
 box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 10px 20px rgba(0,0,0,0.3); 
 position: relative; 
 overflow: hidden;
-padding: 20px 60px 20px 60px; 
+/* Padding reduziert, da wir interne Buffer-Segmente nutzen */
+padding: 20px 0px 20px 0px; 
 }
 
 .lane { 
-border-bottom: 2px dashed rgba(255,255,255,0.15); 
+border-bottom: 2px dashed rgba(255,255,255,0.1); 
 padding: 15px 0; 
 position: relative; 
 height: 120px; 
@@ -74,42 +75,63 @@ white-space: nowrap;
 box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
-.start-line {
+/* --- NEUE GRID LINIEN STYLES --- */
+
+/* Standard Linie (1k, 2k, etc.) */
+.grid-line {
 position: absolute;
-left: 0; top: 0; bottom: 0; width: 4px;
-background-color: rgba(255,255,255,0.8);
-z-index: 15;
-box-shadow: 0 0 5px rgba(255,255,255,0.5);
+top: 0; bottom: 0;
+border-left: 1px dashed rgba(255, 255, 255, 0.15); 
+z-index: 1; 
 }
 
-.finish-line { 
-position: absolute; 
-right: 0; top: 0; bottom: 0; width: 20px; 
+/* Start Linie */
+.start-line-marker {
+position: absolute;
+top: 0; bottom: 0;
+border-left: 2px solid rgba(255, 255, 255, 0.5); 
+z-index: 2; 
+}
+
+/* 5k Linie (Fett) */
+.major-line {
+position: absolute;
+top: 0; bottom: 0;
+border-left: 3px solid rgba(255, 255, 255, 0.4); 
+z-index: 2; 
+}
+
+/* Ziel Linie (Schachbrett Muster) */
+.finish-line-marker {
+position: absolute;
+top: 0; bottom: 0;
+width: 15px;
 background-image: 
 linear-gradient(45deg, #000 25%, transparent 25%), 
 linear-gradient(-45deg, #000 25%, transparent 25%), 
 linear-gradient(45deg, transparent 75%, #000 75%), 
 linear-gradient(-45deg, transparent 75%, #000 75%);
 background-size: 10px 10px;
-background-color: #fff;
-opacity: 0.9; 
-z-index: 15; 
-box-shadow: -2px 0 5px rgba(0,0,0,0.3);
+background-color: rgba(255,255,255,0.9);
+z-index: 3;
+transform: translateX(-50%); /* Zentriert auf dem Punkt */
 }
 
-.milestone-line {
-position: absolute;
-top: 0; bottom: 0;
-border-left: 1px solid rgba(255, 255, 255, 0.1); 
-z-index: 1; 
-}
-.milestone-text {
+.grid-text {
 position: absolute;
 bottom: 5px;
-font-size: 9px;
-color: rgba(255, 255, 255, 0.3);
+font-size: 10px;
+color: rgba(255, 255, 255, 0.5);
 transform: translateX(-50%); 
 font-family: sans-serif;
+font-weight: bold;
+white-space: nowrap;
+}
+
+.grid-text-major {
+font-size: 12px;
+color: rgba(255, 255, 255, 0.9);
+bottom: 5px;
 }
 
 .date-display {
@@ -166,17 +188,16 @@ font-weight: bold;
 .forecast-date { font-size: 11px; color: #888; margin-top: 2px; }
 .score-display { font-size: 16px; font-weight: bold; color: #3e4a38; }
 
-/* Button Styling für WhatsApp Share (Dunkleres Grün & kein Unterstrich) */
 .whatsapp-btn {
 display: inline-flex;
 align-items: center;
 justify-content: center;
-background-color: #128C7E; /* Dunkleres WhatsApp Teal */
+background-color: #128C7E; 
 color: white !important;
 font-weight: bold;
 padding: 10px 20px;
 border-radius: 8px;
-text-decoration: none !important; /* Kein Unterstrich erzwingen */
+text-decoration: none !important; 
 width: 100%;
 margin-top: 10px;
 box-shadow: 0 2px 5px rgba(0,0,0,0.2);
@@ -184,7 +205,7 @@ font-family: sans-serif;
 transition: background-color 0.3s;
 }
 .whatsapp-btn:hover {
-background-color: #075E54; /* Noch dunkler beim Hover */
+background-color: #075E54;
 box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 color: white !important;
 text-decoration: none !important;
@@ -281,16 +302,41 @@ def render_track_html(current_df, display_date=None):
     # Stadion Start
     track_html = '<div class="racetrack">'
     
-    # Meilensteine (1k bis 10k)
-    for m in range(1000, GOAL + 1, 1000):
-        pct = (m / GOAL) * 100
-        if pct > 100: pct = 100
+    # --- GRID BERECHNUNG (12 SEGMENTE) ---
+    # Wir teilen 100% durch 12.
+    # Start (0k) ist bei 1/12.
+    # Finish (10k) ist bei 11/12.
+    total_segments = 12
+    segment_width = 100.0 / total_segments
+    
+    # Wir loopen von 0k bis 10k (also 11 Linien)
+    for k in range(0, 11): 
+        # Position ist k+1 Segmente verschoben (da links ein Buffer ist)
+        pos_percent = (k + 1) * segment_width
         
+        # Styles bestimmen
+        label = f"{k}k"
+        css_class = "grid-line"
+        text_class = "grid-text"
+        
+        if k == 0:
+            label = "Start"
+            css_class = "start-line-marker"
+            text_class = "grid-text grid-text-major"
+        elif k == 5:
+            css_class = "major-line" # Dicke Linie für 5k
+            text_class = "grid-text grid-text-major"
+        elif k == 10:
+            label = "Finish"
+            css_class = "finish-line-marker"
+            text_class = "grid-text grid-text-major"
+            
         track_html += f"""
-<div class="milestone-line" style="left: {pct}%;">
-<span class="milestone-text">{int(m/1000)}k</span>
+<div class="{css_class}" style="left: {pos_percent}%;">
+<span class="{text_class}">{label}</span>
 </div>
 """
+
     # Datum
     if display_date:
         track_html += f'<div class="date-display">📅 {display_date}</div>'
@@ -300,7 +346,16 @@ def render_track_html(current_df, display_date=None):
     for name in all_names:
         user_row = current_df[current_df['Name'] == name]
         raw_score = user_row.iloc[0]['Pushups'] if not user_row.empty else 0
-        progress = min(100, (raw_score / GOAL) * 100)
+        
+        # --- PFERDE POSITION BERECHNUNG ---
+        # 0 Pushups = 1. Segment (Start)
+        # 10000 Pushups = 11. Segment (Finish)
+        # Die Strecke dazwischen sind genau 10 Segmente.
+        start_offset = segment_width # 8.33%
+        playable_range = segment_width * 10 # 83.33%
+        
+        progress_ratio = min(1.0, raw_score / GOAL)
+        final_pos_percent = start_offset + (progress_ratio * playable_range)
         
         if name == leader_name and raw_score > 0:
             current_icon = IMG_FIRST
@@ -311,9 +366,7 @@ def render_track_html(current_df, display_date=None):
             
         track_html += f"""
 <div class="lane">
-<div class="start-line"></div>
-<div class="finish-line"></div>
-<div class="horse-container" style="left: {progress}%;">
+<div class="horse-container" style="left: {final_pos_percent}%;">
 <img src="{current_icon}" class="race-img">
 <span class="name-tag">{name} ({int(raw_score)})</span>
 </div>
@@ -353,7 +406,7 @@ if 'last_log' in st.session_state:
         leaderboard_text += f"{rank}. {row['Name']}: {int(row['Pushups'])}\n"
         rank += 1
     
-    # WhatsApp Text zusammenbauen mit dem RICHTIGEN LINK
+    # WhatsApp Text
     wa_text = f"🐎 *Pushup Update!*\n*{log_data['name']}* hat gerade *{log_data['amount']}* Pushups gemacht! 💪\n\n🏆 *Aktueller Stand:*\n{leaderboard_text}\n🔗 https://pushupchallenge-zd5abepwkexdjtpsfbyzf6.streamlit.app/"
     wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_text)}"
     
