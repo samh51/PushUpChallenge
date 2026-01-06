@@ -7,7 +7,6 @@ from google.oauth2.service_account import Credentials
 
 # --- CONFIGURATION ---
 GOAL = 10000
-# We only need the ID, not the full URL, to be safest
 SHEET_ID = "1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM"
 
 # 🖼️ IMAGE CONFIGURATION
@@ -31,28 +30,37 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- DIRECT CONNECTION FUNCTION ---
+# --- DIRECT CONNECTION FUNCTION (ROBUST VERSION) ---
 def get_google_sheet_client():
-    # Load credentials directly from Streamlit secrets
-    # We use the same 'connections.gsheets' section you already have
-    secrets = st.secrets["connections"]["gsheets"]
-    
-    # Create the credentials object
-    creds = Credentials.from_service_account_info(
-        secrets,
-        scopes=[
-            "https://www.googleapis.com/auth/spreadsheets",
-        ],
-    )
-    return gspread.authorize(creds)
+    # 🕵️‍♂️ SMART LOOKUP: Finds credentials wherever they are
+    try:
+        if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
+            secrets = st.secrets["connections"]["gsheets"]
+        elif "gsheets" in st.secrets:
+            secrets = st.secrets["gsheets"]
+        else:
+            # Fallback: Assume keys are at the root level
+            secrets = st.secrets
+
+        # Convert to standard dictionary
+        secrets_dict = dict(secrets)
+
+        # Create the credentials object
+        creds = Credentials.from_service_account_info(
+            secrets_dict,
+            scopes=["https://www.googleapis.com/auth/spreadsheets"],
+        )
+        return gspread.authorize(creds)
+    except Exception as e:
+        st.error(f"🔐 Authentication Error: {e}")
+        st.info("Check your secrets.toml. It should contain 'private_key', 'client_email', etc.")
+        st.stop()
 
 def get_data(tab_index):
     try:
         client = get_google_sheet_client()
         sheet = client.open_by_key(SHEET_ID)
         worksheet = sheet.get_worksheet(tab_index)
-        
-        # Get all records as a list of dictionaries
         data = worksheet.get_all_records()
         return pd.DataFrame(data)
     except Exception as e:
@@ -66,12 +74,8 @@ def update_data(name, new_reps):
         
         # 1. Update Totals (Tab 0)
         ws_totals = sheet.get_worksheet(0)
-        
-        # Find the cell to update. 
-        # We assume Names are in Col A (1) and Values in Col B (2)
         cell = ws_totals.find(name)
         if cell:
-            # Get current value (cell.row, column 2)
             current_val = int(ws_totals.cell(cell.row, 2).value or 0)
             new_total = current_val + new_reps
             ws_totals.update_cell(cell.row, 2, new_total)
@@ -83,7 +87,6 @@ def update_data(name, new_reps):
         ws_logs = sheet.get_worksheet(1)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ws_logs.append_row([timestamp, name, new_reps])
-        
         return True
     except Exception as e:
         st.error(f"Error updating: {e}")
@@ -92,6 +95,10 @@ def update_data(name, new_reps):
 # --- RENDER FUNCTION ---
 def render_track_html(current_df):
     if current_df.empty: return ""
+    
+    # Clean data to avoid errors
+    if 'Pushups' in current_df.columns:
+        current_df['Pushups'] = pd.to_numeric(current_df['Pushups'], errors='coerce').fillna(0)
     
     df_sorted = current_df.sort_values('Pushups', ascending=False)
     leader_name = df_sorted.iloc[0]['Name']
@@ -133,11 +140,11 @@ if 'has_animated' not in st.session_state:
     st.session_state.has_animated = False
 
 # --- LOAD DATA ---
-df_totals = get_data(0) # Index 0 = First Tab
-df_logs = get_data(1)   # Index 1 = Second Tab
+df_totals = get_data(0)
+df_logs = get_data(1)
 
 if df_totals.empty:
-    st.warning("Waiting for data... check Secrets and Sheet Sharing.")
+    st.warning("Waiting for data...")
     st.stop()
 
 # --- ANIMATION LOGIC ---
@@ -147,16 +154,19 @@ if not st.session_state.has_animated and not df_logs.empty:
     race_placeholder.markdown(render_track_html(race_df), unsafe_allow_html=True)
     time.sleep(0.5)
     
-    df_logs['Amount'] = pd.to_numeric(df_logs['Amount'], errors='coerce').fillna(0)
-    
-    # Replay Loop
-    for i in range(0, len(df_logs), max(1, int(len(df_logs)/25))):
-        current_slice = df_logs.iloc[:i+1]
-        current_totals = current_slice.groupby('Name')['Amount'].sum().reset_index()
-        current_totals.columns = ['Name', 'Pushups']
-        frame_df = pd.merge(race_df[['Name']], current_totals, on='Name', how='left').fillna(0)
-        race_placeholder.markdown(render_track_html(frame_df), unsafe_allow_html=True)
-        time.sleep(0.03)
+    # Clean logs
+    if 'Amount' in df_logs.columns:
+        df_logs['Amount'] = pd.to_numeric(df_logs['Amount'], errors='coerce').fillna(0)
+        
+        # Replay Loop
+        step = max(1, int(len(df_logs)/25))
+        for i in range(0, len(df_logs), step):
+            current_slice = df_logs.iloc[:i+1]
+            current_totals = current_slice.groupby('Name')['Amount'].sum().reset_index()
+            current_totals.columns = ['Name', 'Pushups']
+            frame_df = pd.merge(race_df[['Name']], current_totals, on='Name', how='left').fillna(0)
+            race_placeholder.markdown(render_track_html(frame_df), unsafe_allow_html=True)
+            time.sleep(0.03)
 
     st.session_state.has_animated = True
 
