@@ -252,11 +252,8 @@ def update_batch_entry(name, input_pushups, input_pullups, input_dips):
             return False, ""
             
         row_num = cell.row
-        # Werte holen (Spalten C, D, E -> Index 3, 4, 5)
-        # Wir holen sicherheitshalber mehr Spalten
         row_values = ws_totals.row_values(row_num)
         
-        # Auffüllen falls leer
         while len(row_values) < 5:
             row_values.append("0")
             
@@ -347,7 +344,8 @@ def save_full_edits(edited_logs_df):
 def render_track_html(current_df, display_date=None):
     if current_df.empty: return ""
     
-    df_sorted = current_df.sort_values('Score', ascending=False)
+    # RENNBAHN ZEIGT IMMER TOTAL (ScoreTotal)
+    df_sorted = current_df.sort_values('ScoreTotal', ascending=False)
     leader_name = df_sorted.iloc[0]['Name']
     last_place_name = df_sorted.iloc[-1]['Name']
     
@@ -388,7 +386,8 @@ def render_track_html(current_df, display_date=None):
     
     for i, name in enumerate(all_names):
         user_row = current_df[current_df['Name'] == name]
-        raw_score = user_row.iloc[0]['Score'] if not user_row.empty else 0
+        # HIER IMMER TOTAL NEHMEN
+        raw_score = user_row.iloc[0]['ScoreTotal'] if not user_row.empty else 0
         
         start_offset = segment_width
         playable_range = segment_width * 10 
@@ -429,8 +428,8 @@ def render_track_html(current_df, display_date=None):
 # --- MAIN APP ---
 st.title("🐎 Fitness Derby")
 
-# --- FILTER UI ---
-selected_filter = st.selectbox("Anzeige filtern:", ["Gesamt (Alle Punkte)", "Pushups", "Pullups", "Dips"])
+# --- FILTER UI (NUR FÜR LEADERBOARD) ---
+selected_filter = st.selectbox("Leaderboard filtern:", ["Gesamt (Alle Punkte)", "Pushups", "Pullups", "Dips"])
 
 # Platzhalter
 share_placeholder = st.empty()
@@ -448,42 +447,44 @@ if df_totals.empty:
     st.warning("Warte auf Daten (oder DB Verbindung prüfen)...")
     st.stop()
 
-# --- DATEN VORBEREITUNG (FILTER LOGIK + REINIGUNG) ---
+# --- DATEN VORBEREITUNG (FILTER & BEREINIGUNG) ---
 df_display = df_totals.copy()
 
-# 🔴 FIX: Zuerst ALLE Exercise-Spalten sauber in Zahlen umwandeln
+# 1. Daten bereinigen (alles zu Zahlen machen)
 for ex in EXERCISES:
     if ex not in df_display.columns:
         df_display[ex] = 0
     else:
-        # Alles was kein numerischer Wert ist (z.B. ""), wird zu NaN und dann zu 0
         df_display[ex] = pd.to_numeric(df_display[ex], errors='coerce').fillna(0)
 
-# Auch die 'Total' Spalte reinigen, falls sie existiert
 if 'Total' in df_display.columns:
     df_display['Total'] = pd.to_numeric(df_display['Total'], errors='coerce').fillna(0)
-
-# Score berechnen
-if selected_filter == "Gesamt (Alle Punkte)":
-    if 'Total' in df_display.columns:
-        df_display['Score'] = df_display['Total']
-    else:
-        df_display['Score'] = df_display[EXERCISES].sum(axis=1)
 else:
-    df_display['Score'] = df_display[selected_filter]
+    # Fallback Berechnung
+    df_display['Total'] = df_display[EXERCISES].sum(axis=1)
+
+# 2. ScoreTotal IMMER berechnen (für Rennbahn)
+df_display['ScoreTotal'] = df_display['Total']
+
+# 3. ScoreFiltered berechnen (für Leaderboard)
+if selected_filter == "Gesamt (Alle Punkte)":
+    df_display['ScoreFiltered'] = df_display['Total']
+else:
+    df_display['ScoreFiltered'] = df_display[selected_filter]
 
 # --- SUCCESS & SHARE LOGIC ---
 if 'last_log' in st.session_state:
     log_data = st.session_state.last_log
     
-    df_sorted_for_wa = df_display.sort_values('Score', ascending=False)
+    # Leaderboard für WhatsApp (immer Gesamt-Score)
+    df_sorted_for_wa = df_display.sort_values('ScoreTotal', ascending=False)
     leaderboard_text = ""
     rank = 1
     for _, row in df_sorted_for_wa.iterrows():
-        leaderboard_text += f"{rank}. {row['Name']}: {int(row['Score'])}\n"
+        leaderboard_text += f"{rank}. {row['Name']}: {int(row['ScoreTotal'])}\n"
         rank += 1
     
-    wa_text = f"🐎 *Update!*\n*{log_data['name']}* hat gerade *{log_data['msg']}* gemacht! 💪\n\n🏆 *Stand ({selected_filter}):*\n{leaderboard_text}\n🔗 https://pushupchallenge-zd5abepwkexdjtpsfbyzf6.streamlit.app/"
+    wa_text = f"🐎 *Update!*\n*{log_data['name']}* hat gerade *{log_data['msg']}* gemacht! 💪\n\n🏆 *Gesamtstand:*\n{leaderboard_text}\n🔗 https://pushupchallenge-zd5abepwkexdjtpsfbyzf6.streamlit.app/"
     wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_text)}"
     
     with share_placeholder.container():
@@ -497,7 +498,7 @@ if 'last_log' in st.session_state:
     
     del st.session_state.last_log
 
-# --- ANIMATION LOGIC ---
+# --- ANIMATION LOGIC (BASIERT JETZT AUF TOTAL) ---
 if not st.session_state.has_animated and not df_logs.empty:
     
     with skip_btn_placeholder:
@@ -508,7 +509,7 @@ if not st.session_state.has_animated and not df_logs.empty:
     all_names = ["Kevin", "Sämi", "Eric", "Elia"]
     race_scores = {name: 0 for name in all_names}
     
-    initial_df = pd.DataFrame([{'Name': n, 'Score': 0} for n in all_names])
+    initial_df = pd.DataFrame([{'Name': n, 'ScoreTotal': 0} for n in all_names])
     race_placeholder.markdown(render_track_html(initial_df, "Start"), unsafe_allow_html=True)
     time.sleep(0.5)
     
@@ -525,13 +526,8 @@ if not st.session_state.has_animated and not df_logs.empty:
                 
             name = row['Name']
             amount = row['Amount']
-            exercise = row.get('Exercise', 'Pushups')
-            
-            points_to_add = 0
-            if selected_filter == "Gesamt (Alle Punkte)":
-                points_to_add = amount
-            elif exercise == selected_filter:
-                points_to_add = amount
+            # Animation zeigt IMMER Gesamtfortschritt -> jeder Punkt zählt
+            points_to_add = amount
             
             current_ts = row['Timestamp']
             date_str = current_ts.strftime('%d.%m.%Y') if pd.notnull(current_ts) else ""
@@ -540,7 +536,7 @@ if not st.session_state.has_animated and not df_logs.empty:
                 if name in race_scores:
                     race_scores[name] += points_to_add
                 
-                frame_data = [{'Name': n, 'Score': s} for n, s in race_scores.items()]
+                frame_data = [{'Name': n, 'ScoreTotal': s} for n, s in race_scores.items()]
                 frame_df = pd.DataFrame(frame_data)
                 
                 race_placeholder.markdown(render_track_html(frame_df, display_date=date_str), unsafe_allow_html=True)
@@ -580,11 +576,15 @@ with st.form("log_form", clear_on_submit=True):
                     st.session_state.last_log = {'name': who, 'msg': msg}
                     st.rerun()
 
-# --- STATS CALC ---
-df_sorted = df_display.sort_values('Score', ascending=False)
-leader = df_sorted.iloc[0]
-remaining = GOAL - leader['Score']
-total_team_reps = int(df_display['Score'].sum())
+# --- STATS CALC (IMMER GLOBAL) ---
+# Für die Statistik rechts nehmen wir IMMER den Total Score
+df_global_sorted = df_display.sort_values('ScoreTotal', ascending=False)
+leader_global = df_global_sorted.iloc[0]
+remaining_global = GOAL - leader_global['ScoreTotal']
+total_team_reps_global = int(df_display['ScoreTotal'].sum())
+
+# Für das Leaderboard links nehmen wir den GEFILTERTEN Score
+df_leaderboard_sorted = df_display.sort_values('ScoreFiltered', ascending=False)
 
 start_date = datetime.now()
 days_passed = 1
@@ -595,23 +595,23 @@ if not df_logs.empty and 'Timestamp' in df_logs.columns:
 
 col1, col2 = st.columns(2)
 
-# LINKE KARTE: Leaderboard mit Breakdown
+# LINKE KARTE: Leaderboard (Gefiltert)
 with col1:
     leaderboard_html = '<div class="metric-card">'
     leaderboard_html += f'<h3 style="margin:0; font-size:16px; color:#666; margin-bottom:15px;">🏆 Leaderboard ({selected_filter})</h3>'
     
     rank = 1
-    for index, row in df_sorted.iterrows():
+    for index, row in df_leaderboard_sorted.iterrows():
         name = row['Name']
-        score = int(row['Score'])
+        # Hier zeigen wir den Score basierend auf dem Filter an
+        score = int(row['ScoreFiltered'])
         
-        # Breakdown String - 🔴 HIER WAR DER FEHLER
+        # Breakdown String (nur bei Gesamt interessant)
         detail_str = ""
         if selected_filter == "Gesamt (Alle Punkte)":
             parts = []
             for ex in EXERCISES:
-                # Da wir oben "gereinigt" haben, ist sichergestellt, dass es Zahlen sind
-                val = int(row.get(ex, 0)) 
+                val = int(row.get(ex, 0))
                 parts.append(f"{ex[:2].upper()}:{val}")
             detail_str = " | ".join(parts)
         
@@ -620,13 +620,17 @@ with col1:
         forecast_str = ""
         if score > 0:
             daily_avg = score / days_passed
-            remaining_for_player = GOAL - score
+            # Ziel gilt eigentlich fürs Gesamt, aber wir zeigen hier einfach die Rate an
+            remaining_for_player = GOAL - int(row['ScoreTotal']) # Ziel ist immer das Gesamt-Ziel
             if remaining_for_player <= 0:
                 forecast_str = "✅ Done"
-            else:
+            elif selected_filter == "Gesamt (Alle Punkte)":
                 days_to_go = remaining_for_player / daily_avg
                 finish_date = datetime.now() + timedelta(days=days_to_go)
                 forecast_str = f"🏁 {finish_date.strftime('%d.%m.%y')}"
+            else:
+                # Bei Unterkategorien macht Ziel-Datum weniger Sinn, wir zeigen nur Ø
+                forecast_str = ""
 
         leaderboard_html += f"""
 <div class="leader-row">
@@ -634,7 +638,7 @@ with col1:
 <span class="rank-badge">{rank}</span>
 <div class="player-info">
 <span class="player-name">{name}</span>
-<span class="forecast-date">Ø {daily_avg:.1f}/Tag • {forecast_str}</span>
+<span class="forecast-date">Ø {daily_avg:.1f}/Tag {('• ' + forecast_str) if forecast_str else ''}</span>
 </div>
 </div>
 <div style="text-align:right;">
@@ -648,22 +652,22 @@ with col1:
     leaderboard_html += '</div>'
     st.markdown(leaderboard_html, unsafe_allow_html=True)
 
-# RECHTE KARTE: Stats für den Filter
+# RECHTE KARTE: Stats (IMMER GESAMT)
 with col2:
     st.markdown(f"""
 <div class="metric-card" style="text-align:center;">
-<h3 style="margin:0; font-size:16px; color:#666;">📊 Statistik ({selected_filter})</h3>
+<h3 style="margin:0; font-size:16px; color:#666;">📊 Statistik (Gesamt)</h3>
 <div style="margin-top:20px;">
 <p style="margin:0; color:#888; font-size:12px;">Aktueller Leader</p>
-<h2 style="margin:5px 0; font-size:24px; color:#3e4a38;">{leader['Name']}</h2>
+<h2 style="margin:5px 0; font-size:24px; color:#3e4a38;">{leader_global['Name']}</h2>
 </div>
 <div style="margin-top:15px;">
 <p style="margin:0; color:#888; font-size:12px;">Team Gesamt</p>
-<h2 style="margin:5px 0; font-size:24px; color:#1e88e5;">{total_team_reps}</h2>
+<h2 style="margin:5px 0; font-size:24px; color:#1e88e5;">{total_team_reps_global}</h2>
 <p style="margin:0; color:#888; font-size:10px;">Punkte Total</p>
 </div>
 <div style="margin-top:15px; border-top:1px solid #eee; padding-top:10px;">
-<p style="margin:0; font-size:11px; color:#666;">Noch offen (Leader): <b>{int(remaining) if remaining > 0 else 0}</b></p>
+<p style="margin:0; font-size:11px; color:#666;">Noch offen (Leader): <b>{int(remaining_global) if remaining_global > 0 else 0}</b></p>
 <p style="margin:0; font-size:11px; color:#666;">Laufzeit: <b>{days_passed} Tage</b></p>
 </div>
 </div>
