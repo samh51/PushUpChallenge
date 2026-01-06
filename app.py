@@ -83,9 +83,12 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def get_data(worksheet_name):
     try:
         # We specify worksheet to grab either 'Sheet1' (Totals) or 'Logs'
+        # ttl=0 ensures we don't cache data
         df = conn.read(spreadsheet=SHEET_URL, worksheet=worksheet_name, ttl=0)
         return df
     except Exception as e:
+        # ⚠️ THIS WILL SHOW THE REAL ERROR ON YOUR APP SCREEN
+        st.error(f"❌ Error loading tab '{worksheet_name}': {e}")
         return pd.DataFrame()
 
 def update_data(name, new_reps):
