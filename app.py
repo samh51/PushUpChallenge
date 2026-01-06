@@ -9,6 +9,7 @@ from google.oauth2.service_account import Credentials
 # --- KONFIGURATION ---
 GOAL = 10000
 SHEET_ID = "1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM"
+EXERCISES = ["Pushups", "Pullups", "Dips"]
 
 # 🖼️ BILD KONFIGURATION
 IMG_FIRST  = "https://media.istockphoto.com/id/1007282190/vector/horse-power-flame.jpg?s=612x612&w=0&k=20&c=uHnnvMTzaatfPblbFHdfhuJT7qLwsARF90oqH0dMCjA="
@@ -16,7 +17,7 @@ IMG_MIDDLE = "https://t3.ftcdn.net/jpg/02/11/11/34/360_F_211113432_Gb89carZwwGuJ
 IMG_LAST   = "https://i.etsystatic.com/28959621/r/il/e2cf08/5908874106/il_570xN.5908874106_80rl.jpg"
 
 # --- PAGE SETUP ---
-st.set_page_config(page_title="Pushup Derby", page_icon="🐎", layout="centered")
+st.set_page_config(page_title="Fitness Derby", page_icon="🐎", layout="centered")
 
 # --- PROFI DESIGN CSS ---
 st.markdown("""
@@ -30,8 +31,6 @@ st.markdown("""
     box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 10px 20px rgba(0,0,0,0.3); 
     position: relative; 
     overflow: hidden;
-    /* Oben: 60px Platz für Datum */
-    /* Unten: 40px Platz für die zentrierten 1000er Markierungen */
     padding: 60px 0px 40px 0px; 
 }
 
@@ -41,10 +40,9 @@ st.markdown("""
     height: 120px; 
 }
 
-/* Basis-Stil für horizontale Linien */
 .lane-divider {
     position: absolute;
-    left: 8.333%; right: 8.333%; /* Buffer links/rechts */
+    left: 8.333%; right: 8.333%; 
     border-bottom-width: 2px;
     z-index: 1;
 }
@@ -82,8 +80,7 @@ st.markdown("""
     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
-/* --- GRID SYSTEM --- */
-/* Linien gehen von top:60px bis bottom:40px */
+/* GRID SYSTEM */
 .grid-line-base {
     position: absolute;
     top: 60px; bottom: 40px; 
@@ -118,10 +115,9 @@ st.markdown("""
     transform: translateX(-50%);
 }
 
-/* Text Positionierung im unteren 40px Buffer */
 .grid-text {
     position: absolute;
-    bottom: -32px; /* Ziemlich genau mittig im 40px Buffer */
+    bottom: -32px;
     font-size: 10px;
     color: rgba(255, 255, 255, 0.6);
     transform: translateX(-50%); 
@@ -188,7 +184,8 @@ st.markdown("""
 .player-info { display: flex; flex-direction: column; }
 .player-name { font-weight: bold; color: #333; }
 .forecast-date { font-size: 11px; color: #888; margin-top: 2px; }
-.score-display { font-size: 16px; font-weight: bold; color: #3e4a38; }
+.score-display { font-size: 16px; font-weight: bold; color: #3e4a38; text-align: right; }
+.score-detail { font-size: 10px; color: #888; font-weight: normal; display: block; }
 
 .whatsapp-btn {
     display: inline-flex;
@@ -241,48 +238,117 @@ def get_data(tab_index):
         st.error(f"❌ Error loading Tab Index {tab_index}: {e}")
         return pd.DataFrame()
 
-def update_single_entry(name, new_reps):
+# --- BATCH UPDATE FUNKTION ---
+def update_batch_entry(name, input_pushups, input_pullups, input_dips):
+    """Speichert alle 3 Übungen auf einmal und aktualisiert die Total-Spalte"""
     try:
         client = get_google_sheet_client()
         sheet = client.open_by_key(SHEET_ID)
         ws_totals = sheet.get_worksheet(0)
-        cell = ws_totals.find(name)
-        if cell:
-            current_val = int(ws_totals.cell(cell.row, 2).value or 0)
-            ws_totals.update_cell(cell.row, 2, current_val + new_reps)
-        
         ws_logs = sheet.get_worksheet(1)
+        
+        # 1. Totals aktualisieren
+        # Wir lesen die Zeile des Users, berechnen neu und schreiben zurück.
+        # Spaltenstruktur in Sheet: A=Name, B=Total, C=Pushups, D=Pullups, E=Dips
+        cell = ws_totals.find(name)
+        if not cell:
+            st.error(f"User {name} nicht gefunden!")
+            return False, ""
+            
+        row_num = cell.row
+        # Werte holen (Spalten C, D, E -> Index 3, 4, 5)
+        # Wir holen die ganze Zeile (A bis E) als Liste
+        row_values = ws_totals.row_values(row_num)
+        
+        # Sicherstellen, dass die Liste lang genug ist (falls Zellen leer sind)
+        while len(row_values) < 5:
+            row_values.append("0")
+            
+        current_pushups = int(row_values[2] or 0)
+        current_pullups = int(row_values[3] or 0)
+        current_dips = int(row_values[4] or 0)
+        
+        # Neue Summen berechnen
+        new_pushups = current_pushups + input_pushups
+        new_pullups = current_pullups + input_pullups
+        new_dips = current_dips + input_dips
+        new_total = new_pushups + new_pullups + new_dips
+        
+        # Zurückschreiben: Update Zellen B, C, D, E (Spalten 2-5)
+        # gspread range update ist effizienter als einzelne cells
+        ws_totals.update_cell(row_num, 2, new_total)   # Total
+        ws_totals.update_cell(row_num, 3, new_pushups) # Pushups
+        ws_totals.update_cell(row_num, 4, new_pullups) # Pullups
+        ws_totals.update_cell(row_num, 5, new_dips)    # Dips
+        
+        # 2. Logs schreiben
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        ws_logs.append_row([timestamp, name, new_reps])
-        return True
+        log_entries = []
+        msg_parts = []
+        
+        if input_pushups > 0:
+            log_entries.append([timestamp, name, input_pushups, "Pushups"])
+            msg_parts.append(f"{input_pushups} Pushups")
+        if input_pullups > 0:
+            log_entries.append([timestamp, name, input_pullups, "Pullups"])
+            msg_parts.append(f"{input_pullups} Pullups")
+        if input_dips > 0:
+            log_entries.append([timestamp, name, input_dips, "Dips"])
+            msg_parts.append(f"{input_dips} Dips")
+            
+        if log_entries:
+            ws_logs.append_rows(log_entries)
+            
+        summary_msg = " und ".join(msg_parts)
+        return True, summary_msg
+        
     except Exception as e:
         st.error(f"Error updating: {e}")
-        return False
+        return False, ""
 
 def save_full_edits(edited_logs_df):
     try:
         client = get_google_sheet_client()
         sheet = client.open_by_key(SHEET_ID)
         
+        # 1. Logs überschreiben
         ws_logs = sheet.get_worksheet(1)
         ws_logs.clear()
         data_to_write = [edited_logs_df.columns.values.tolist()] + edited_logs_df.values.tolist()
         ws_logs.update(data_to_write)
         
+        # 2. Totals neu berechnen
         edited_logs_df['Amount'] = pd.to_numeric(edited_logs_df['Amount'], errors='coerce').fillna(0)
-        new_totals = edited_logs_df.groupby('Name')['Amount'].sum().reset_index()
+        pivot_totals = edited_logs_df.groupby(['Name', 'Exercise'])['Amount'].sum().unstack(fill_value=0)
         
         all_names = ["Kevin", "Sämi", "Eric", "Elia"]
-        final_totals = pd.DataFrame({'Name': all_names, 'Pushups': 0})
         
-        for index, row in new_totals.iterrows():
-            idx = final_totals.index[final_totals['Name'] == row['Name']].tolist()
-            if idx:
-                final_totals.at[idx[0], 'Pushups'] = row['Amount']
+        final_data = []
+        for name in all_names:
+            # Zeilenstruktur: Name, Total, Pushups, Pullups, Dips
+            row = {'Name': name}
+            
+            p_val = int(pivot_totals.loc[name, 'Pushups']) if (name in pivot_totals.index and 'Pushups' in pivot_totals.columns) else 0
+            pu_val = int(pivot_totals.loc[name, 'Pullups']) if (name in pivot_totals.index and 'Pullups' in pivot_totals.columns) else 0
+            d_val = int(pivot_totals.loc[name, 'Dips']) if (name in pivot_totals.index and 'Dips' in pivot_totals.columns) else 0
+            
+            total_val = p_val + pu_val + d_val
+            
+            row['Total'] = total_val
+            row['Pushups'] = p_val
+            row['Pullups'] = pu_val
+            row['Dips'] = d_val
+            
+            final_data.append(row)
+            
+        final_df = pd.DataFrame(final_data)
+        
+        # 3. Totals schreiben (Spaltenreihenfolge beachten)
+        final_df = final_df[['Name', 'Total', 'Pushups', 'Pullups', 'Dips']]
         
         ws_totals = sheet.get_worksheet(0)
         ws_totals.clear()
-        totals_data = [final_totals.columns.values.tolist()] + final_totals.values.tolist()
+        totals_data = [final_df.columns.values.tolist()] + final_df.values.tolist()
         ws_totals.update(totals_data)
         
         return True
@@ -294,26 +360,20 @@ def save_full_edits(edited_logs_df):
 def render_track_html(current_df, display_date=None):
     if current_df.empty: return ""
     
-    if 'Pushups' in current_df.columns:
-        current_df['Pushups'] = pd.to_numeric(current_df['Pushups'], errors='coerce').fillna(0)
-    
-    df_sorted = current_df.sort_values('Pushups', ascending=False)
+    # Sortieren basierend auf dem aktuellen Score
+    df_sorted = current_df.sort_values('Score', ascending=False)
     leader_name = df_sorted.iloc[0]['Name']
     last_place_name = df_sorted.iloc[-1]['Name']
     
-    # Stadion Start
     track_html = '<div class="racetrack">'
     
-    # --- GRID BERECHNUNG (12 SEGMENTE) ---
+    # --- GRID ---
     total_segments = 12
     segment_width = 100.0 / total_segments
     
-    # Loop von 0k bis 10k
     for k in range(0, 11): 
         pos_percent = (k + 1) * segment_width
-        
         label = f"{k}k"
-        # Basis-Klasse für Positionierung
         css_class = "grid-line-base grid-line"
         text_class = "grid-text"
         
@@ -335,16 +395,14 @@ def render_track_html(current_df, display_date=None):
 </div>
 """
 
-    # Datum
     if display_date:
         track_html += f'<div class="date-display">📅 {display_date}</div>'
     
     all_names = ["Kevin", "Sämi", "Eric", "Elia"] 
     
-    # --- PFERDE & BAHNEN LOOP ---
     for i, name in enumerate(all_names):
         user_row = current_df[current_df['Name'] == name]
-        raw_score = user_row.iloc[0]['Pushups'] if not user_row.empty else 0
+        raw_score = user_row.iloc[0]['Score'] if not user_row.empty else 0
         
         start_offset = segment_width
         playable_range = segment_width * 10 
@@ -359,16 +417,12 @@ def render_track_html(current_df, display_date=None):
         else:
             current_icon = IMG_MIDDLE
             
-        # --- LOGIK FÜR HORIZONTALE LINIEN ---
         top_divider_html = ""
         bottom_style = "dashed"
         bottom_color = "rgba(255,255,255,0.15)" 
 
-        # Erste Bahn: Solid Linie OBEN
         if i == 0:
             top_divider_html = '<div class="lane-divider" style="top: 0; border-bottom-style: solid; border-bottom-color: rgba(255,255,255,0.3);"></div>'
-
-        # Letzte Bahn: Solid Linie UNTEN
         if i == len(all_names) - 1:
             bottom_style = "solid"
             bottom_color = "rgba(255,255,255,0.3)" 
@@ -387,7 +441,10 @@ def render_track_html(current_df, display_date=None):
     return track_html
 
 # --- MAIN APP ---
-st.title("🐎 10k Pushup Derby")
+st.title("🐎 Fitness Derby")
+
+# --- FILTER UI ---
+selected_filter = st.selectbox("Anzeige filtern:", ["Gesamt (Alle Punkte)", "Pushups", "Pullups", "Dips"])
 
 # Platzhalter
 share_placeholder = st.empty()
@@ -402,25 +459,43 @@ df_totals = get_data(0)
 df_logs = get_data(1)
 
 if df_totals.empty:
-    st.warning("Warte auf Daten...")
+    st.warning("Warte auf Daten (oder DB Verbindung prüfen)...")
     st.stop()
+
+# --- DATEN VORBEREITUNG (FILTER LOGIK) ---
+# Wir berechnen für die Anzeige ein "Score" Feld basierend auf dem Filter
+df_display = df_totals.copy()
+for ex in EXERCISES:
+    if ex not in df_display.columns:
+        df_display[ex] = 0 
+
+if selected_filter == "Gesamt (Alle Punkte)":
+    # Wir nehmen die Total Spalte aus dem Sheet (oder summieren neu zur Sicherheit)
+    if 'Total' in df_display.columns:
+        df_display['Score'] = pd.to_numeric(df_display['Total'], errors='coerce').fillna(0)
+    else:
+        df_display['Score'] = df_display[EXERCISES].sum(axis=1)
+else:
+    # Nur die gewählte Spalte
+    df_display['Score'] = df_display[selected_filter]
 
 # --- SUCCESS & SHARE LOGIC ---
 if 'last_log' in st.session_state:
     log_data = st.session_state.last_log
     
-    df_sorted_for_wa = df_totals.sort_values('Pushups', ascending=False)
+    # Leaderboard String für WhatsApp
+    df_sorted_for_wa = df_display.sort_values('Score', ascending=False)
     leaderboard_text = ""
     rank = 1
     for _, row in df_sorted_for_wa.iterrows():
-        leaderboard_text += f"{rank}. {row['Name']}: {int(row['Pushups'])}\n"
+        leaderboard_text += f"{rank}. {row['Name']}: {int(row['Score'])}\n"
         rank += 1
     
-    wa_text = f"🐎 *Pushup Update!*\n*{log_data['name']}* hat gerade *{log_data['amount']}* Pushups gemacht! 💪\n\n🏆 *Aktueller Stand:*\n{leaderboard_text}\n🔗 https://pushupchallenge-zd5abepwkexdjtpsfbyzf6.streamlit.app/"
+    wa_text = f"🐎 *Update!*\n*{log_data['name']}* hat gerade *{log_data['msg']}* gemacht! 💪\n\n🏆 *Stand ({selected_filter}):*\n{leaderboard_text}\n🔗 https://pushupchallenge-zd5abepwkexdjtpsfbyzf6.streamlit.app/"
     wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_text)}"
     
     with share_placeholder.container():
-        st.success(f"✅ {log_data['amount']} Pushups für {log_data['name']} gespeichert!")
+        st.success(f"✅ {log_data['msg']} für {log_data['name']} gespeichert!")
         st.markdown(f"""
         <a href="{wa_url}" target="_blank" class="whatsapp-btn">
             📢 In WhatsApp-Gruppe teilen
@@ -431,17 +506,18 @@ if 'last_log' in st.session_state:
     del st.session_state.last_log
 
 # --- ANIMATION LOGIC ---
+# Die Animation nutzt nun auch die gefilterten Logs
 if not st.session_state.has_animated and not df_logs.empty:
     
     with skip_btn_placeholder:
-        if st.button("⏩ Animation überspringen (Sofort zum Ergebnis)"):
+        if st.button("⏩ Animation überspringen"):
             st.session_state.has_animated = True
             st.rerun()
 
     all_names = ["Kevin", "Sämi", "Eric", "Elia"]
     race_scores = {name: 0 for name in all_names}
     
-    initial_df = pd.DataFrame([{'Name': n, 'Pushups': 0} for n in all_names])
+    initial_df = pd.DataFrame([{'Name': n, 'Score': 0} for n in all_names])
     race_placeholder.markdown(render_track_html(initial_df, "Start"), unsafe_allow_html=True)
     time.sleep(0.5)
     
@@ -458,17 +534,27 @@ if not st.session_state.has_animated and not df_logs.empty:
                 
             name = row['Name']
             amount = row['Amount']
+            exercise = row.get('Exercise', 'Pushups')
+            
+            # Filter Logik für Animation
+            points_to_add = 0
+            if selected_filter == "Gesamt (Alle Punkte)":
+                points_to_add = amount
+            elif exercise == selected_filter:
+                points_to_add = amount
+            
             current_ts = row['Timestamp']
             date_str = current_ts.strftime('%d.%m.%Y') if pd.notnull(current_ts) else ""
             
-            if name in race_scores:
-                race_scores[name] += amount
-            
-            frame_data = [{'Name': n, 'Pushups': s} for n, s in race_scores.items()]
-            frame_df = pd.DataFrame(frame_data)
-            
-            race_placeholder.markdown(render_track_html(frame_df, display_date=date_str), unsafe_allow_html=True)
-            time.sleep(0.3) 
+            if points_to_add > 0:
+                if name in race_scores:
+                    race_scores[name] += points_to_add
+                
+                frame_data = [{'Name': n, 'Score': s} for n, s in race_scores.items()]
+                frame_df = pd.DataFrame(frame_data)
+                
+                race_placeholder.markdown(render_track_html(frame_df, display_date=date_str), unsafe_allow_html=True)
+                time.sleep(0.2) 
 
     st.session_state.has_animated = True
     
@@ -476,67 +562,80 @@ skip_btn_placeholder.empty()
 
 # --- FINAL STATE ---
 today_str = datetime.now().strftime('%d.%m.%Y')
-race_placeholder.markdown(render_track_html(df_totals, today_str), unsafe_allow_html=True)
+race_placeholder.markdown(render_track_html(df_display, today_str), unsafe_allow_html=True)
 
-# --- EINGABE FORMULAR ---
+# --- EINGABE FORMULAR (MULTI) ---
 with st.form("log_form", clear_on_submit=True):
-    col_a, col_b = st.columns(2)
     names_list = ["Kevin", "Sämi", "Eric", "Elia"]
+    who = st.selectbox("Wer bist du?", names_list)
     
-    with col_a:
-        who = st.selectbox("Wer bist du?", names_list)
-    with col_b:
-        amount = st.number_input("Anzahl Pushups:", min_value=1, value=20, step=1)
+    st.write("Was hast du gemacht?")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        in_push = st.number_input("Pushups", min_value=0, value=0, step=1)
+    with c2:
+        in_pull = st.number_input("Pullups", min_value=0, value=0, step=1)
+    with c3:
+        in_dips = st.number_input("Dips", min_value=0, value=0, step=1)
     
     submitted = st.form_submit_button("🚀 Eintragen", use_container_width=True)
 
     if submitted:
-        with st.spinner("Speichere..."):
-            success = update_single_entry(who, amount)
-            if success:
-                st.session_state.last_log = {'name': who, 'amount': amount}
-                st.rerun()
+        if in_push == 0 and in_pull == 0 and in_dips == 0:
+            st.error("Bitte mindestens eine Übung eintragen.")
+        else:
+            with st.spinner("Speichere..."):
+                success, msg = update_batch_entry(who, in_push, in_pull, in_dips)
+                if success:
+                    st.session_state.last_log = {'name': who, 'msg': msg}
+                    st.rerun()
 
-# --- STATS ---
-df_sorted = df_totals.sort_values('Pushups', ascending=False)
+# --- STATS CALC ---
+df_sorted = df_display.sort_values('Score', ascending=False)
 leader = df_sorted.iloc[0]
-remaining = GOAL - leader['Pushups']
-total_team_reps = int(df_totals['Pushups'].sum())
+remaining = GOAL - leader['Score']
+total_team_reps = int(df_display['Score'].sum())
 
 start_date = datetime.now()
 days_passed = 1
-
 if not df_logs.empty and 'Timestamp' in df_logs.columns:
-    df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
     start_date = df_logs['Timestamp'].min()
     days_passed = (datetime.now() - start_date).days
     days_passed = max(1, days_passed)
 
 col1, col2 = st.columns(2)
 
-# LINKE KARTE
+# LINKE KARTE: Leaderboard mit Breakdown
 with col1:
     leaderboard_html = '<div class="metric-card">'
-    leaderboard_html += '<h3 style="margin:0; font-size:16px; color:#666; margin-bottom:15px;">🏆 Leaderboard</h3>'
+    leaderboard_html += f'<h3 style="margin:0; font-size:16px; color:#666; margin-bottom:15px;">🏆 Leaderboard ({selected_filter})</h3>'
     
     rank = 1
     for index, row in df_sorted.iterrows():
         name = row['Name']
-        score = int(row['Pushups'])
+        score = int(row['Score'])
         
+        # Breakdown String (nur bei Gesamt interessant)
+        detail_str = ""
+        if selected_filter == "Gesamt (Alle Punkte)":
+            parts = []
+            for ex in EXERCISES:
+                val = int(row.get(ex, 0))
+                parts.append(f"{ex[:2].upper()}:{val}") # PU:100, DI:50
+            detail_str = " | ".join(parts)
+        
+        # Prognose
         daily_avg = 0
-        forecast_str = "Start?"
-        
+        forecast_str = ""
         if score > 0:
             daily_avg = score / days_passed
             remaining_for_player = GOAL - score
-            
             if remaining_for_player <= 0:
-                forecast_str = "🏆 Ziel erreicht!"
+                forecast_str = "✅ Done"
             else:
                 days_to_go = remaining_for_player / daily_avg
                 finish_date = datetime.now() + timedelta(days=days_to_go)
-                forecast_str = f"🏁 {finish_date.strftime('%d.%m.%Y')}"
+                forecast_str = f"🏁 {finish_date.strftime('%d.%m.%y')}"
 
         leaderboard_html += f"""
 <div class="leader-row">
@@ -544,10 +643,13 @@ with col1:
 <span class="rank-badge">{rank}</span>
 <div class="player-info">
 <span class="player-name">{name}</span>
-<span class="forecast-date">Ø {daily_avg:.1f} / Tag • {forecast_str}</span>
+<span class="forecast-date">Ø {daily_avg:.1f}/Tag • {forecast_str}</span>
 </div>
 </div>
+<div style="text-align:right;">
 <span class="score-display">{score}</span>
+<span class="score-detail">{detail_str}</span>
+</div>
 </div>
 """
         rank += 1
@@ -555,11 +657,11 @@ with col1:
     leaderboard_html += '</div>'
     st.markdown(leaderboard_html, unsafe_allow_html=True)
 
-# RECHTE KARTE
+# RECHTE KARTE: Stats für den Filter
 with col2:
     st.markdown(f"""
 <div class="metric-card" style="text-align:center;">
-<h3 style="margin:0; font-size:16px; color:#666;">📊 Renn-Status</h3>
+<h3 style="margin:0; font-size:16px; color:#666;">📊 Statistik ({selected_filter})</h3>
 <div style="margin-top:20px;">
 <p style="margin:0; color:#888; font-size:12px;">Aktueller Leader</p>
 <h2 style="margin:5px 0; font-size:24px; color:#3e4a38;">{leader['Name']}</h2>
@@ -567,7 +669,7 @@ with col2:
 <div style="margin-top:15px;">
 <p style="margin:0; color:#888; font-size:12px;">Team Gesamt</p>
 <h2 style="margin:5px 0; font-size:24px; color:#1e88e5;">{total_team_reps}</h2>
-<p style="margin:0; color:#888; font-size:10px;">Pushups Total</p>
+<p style="margin:0; color:#888; font-size:10px;">Punkte Total</p>
 </div>
 <div style="margin-top:15px; border-top:1px solid #eee; padding-top:10px;">
 <p style="margin:0; font-size:11px; color:#666;">Noch offen (Leader): <b>{int(remaining) if remaining > 0 else 0}</b></p>
@@ -579,7 +681,7 @@ with col2:
 # 4. ADMIN
 st.divider()
 with st.expander("📝 Protokoll bearbeiten / Fehler korrigieren"):
-    st.warning("Achtung: Hier kannst du Einträge löschen oder ändern. Das ändert den Spielstand direkt!")
+    st.warning("Hier werden ALLE Logs angezeigt. Spalte 'Exercise' ist wichtig.")
     
     if not df_logs.empty:
         editable_df = df_logs.copy()
