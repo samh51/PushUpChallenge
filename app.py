@@ -7,8 +7,8 @@ from streamlit_gsheets import GSheetsConnection
 # --- CONFIGURATION ---
 GOAL = 10000
 
-# 🔴 FIX: Clean URL (Removed '?gid=0#gid=0' from the end)
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM/edit"
+# 🔴 FIX 1: The "Pure" URL (No /edit, no parameters)
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM"
 
 # 🖼️ IMAGE CONFIGURATION
 IMG_FIRST  = "https://media.istockphoto.com/id/1007282190/vector/horse-power-flame.jpg?s=612x612&w=0&k=20&c=uHnnvMTzaatfPblbFHdfhuJT7qLwsARF90oqH0dMCjA="
@@ -82,31 +82,34 @@ st.markdown("""
 # --- DATA CONNECTION ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-def get_data(worksheet_name):
+def get_data(worksheet_index):
+    """
+    Load data by TAB INDEX (0 = First Tab, 1 = Second Tab)
+    This avoids errors if the tab is named 'Sheet1' vs 'Tabellenblatt1'
+    """
     try:
-        # ttl=0 ensures we don't cache data
-        df = conn.read(spreadsheet=SHEET_URL, worksheet=worksheet_name, ttl=0)
+        # Use index (0 or 1) instead of string name
+        df = conn.read(spreadsheet=SHEET_URL, worksheet=worksheet_index, ttl=0)
         return df
     except Exception as e:
-        # This will print the specific error to the screen if it fails again
-        st.error(f"❌ Error loading tab '{worksheet_name}': {e}")
+        st.error(f"❌ Error loading Tab #{worksheet_index}: {e}")
         return pd.DataFrame()
 
 def update_data(name, new_reps):
     try:
-        # 1. Update Totals (Sheet1)
-        df_totals = get_data("Sheet1")
+        # 1. Update Totals (Tab 0)
+        df_totals = get_data(0)
         if df_totals.empty: return False
         
         user_idx = df_totals[df_totals['Name'] == name].index[0]
-        # Ensure we are adding numbers, not strings
         current_val = pd.to_numeric(df_totals.at[user_idx, 'Pushups'])
         df_totals.at[user_idx, 'Pushups'] = current_val + new_reps
         
-        conn.update(spreadsheet=SHEET_URL, worksheet="Sheet1", data=df_totals)
+        # Write back to Tab 0
+        conn.update(spreadsheet=SHEET_URL, worksheet=0, data=df_totals)
 
-        # 2. Update Logs
-        df_logs = get_data("Logs")
+        # 2. Update Logs (Tab 1)
+        df_logs = get_data(1)
         new_entry = pd.DataFrame([{
             "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "Name": name,
@@ -118,7 +121,8 @@ def update_data(name, new_reps):
         else:
             df_updated_logs = pd.concat([df_logs, new_entry], ignore_index=True)
             
-        conn.update(spreadsheet=SHEET_URL, worksheet="Logs", data=df_updated_logs)
+        # Write back to Tab 1
+        conn.update(spreadsheet=SHEET_URL, worksheet=1, data=df_updated_logs)
         return True
     except Exception as e:
         st.error(f"Error updating: {e}")
@@ -135,7 +139,6 @@ def render_track_html(current_df):
     track_html = '<div class="racetrack">'
     
     # HARDCODED NAMES to prevent lanes from jumping around
-    # ⚠️ Make sure these match your Google Sheet exactly!
     all_names = ["Kevin", "Sämi", "Eric", "Elia"] 
     
     for name in all_names:
@@ -176,29 +179,27 @@ if 'has_animated' not in st.session_state:
     st.session_state.has_animated = False
 
 # --- LOAD DATA ---
-df_totals = get_data("Sheet1")
-df_logs = get_data("Logs")
+# 🔴 FIX 2: Load by Index (0 = Totals, 1 = Logs)
+df_totals = get_data(0)
+df_logs = get_data(1)
 
 if df_totals.empty:
-    st.warning("Waiting for data... check tab names 'Sheet1' and 'Logs'")
+    st.warning("Waiting for data... (If this persists, check secrets.toml)")
     st.stop()
 
 # --- ANIMATION LOGIC ---
 if not st.session_state.has_animated and not df_logs.empty:
     
-    # Setup race start
     race_df = df_totals.copy()
     race_df['Pushups'] = 0
     
     race_placeholder.markdown(render_track_html(race_df), unsafe_allow_html=True)
     time.sleep(0.5)
     
-    # Clean logs
     df_logs['Amount'] = pd.to_numeric(df_logs['Amount'], errors='coerce').fillna(0)
     
-    # Replay Loop
     total_steps = len(df_logs)
-    step_size = max(1, int(total_steps / 25)) # Adjust speed
+    step_size = max(1, int(total_steps / 25))
     
     for i in range(0, total_steps, step_size):
         current_slice = df_logs.iloc[:i+1]
@@ -243,7 +244,13 @@ st.subheader("Log Your Reps")
 with st.form("log_form", clear_on_submit=True):
     col_a, col_b = st.columns(2)
     with col_a:
-        who = st.selectbox("Who are you?", df_totals['Name'].tolist())
+        # Check if Names column exists, if not use default list to prevent crash
+        if 'Name' in df_totals.columns:
+             names_list = df_totals['Name'].tolist()
+        else:
+             names_list = ["Kevin", "Sämi", "Eric", "Elia"]
+             
+        who = st.selectbox("Who are you?", names_list)
     with col_b:
         amount = st.number_input("Reps done:", min_value=1, value=20, step=1)
     
@@ -257,4 +264,4 @@ with st.form("log_form", clear_on_submit=True):
                 time.sleep(1)
                 st.rerun()
 
-st.caption("Data is live-synced with Google Sheets (Totals & Logs).")
+st.caption("Data is live-synced with Google Sheets (Tab 1 & Tab 2).")
