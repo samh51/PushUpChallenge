@@ -240,16 +240,12 @@ def get_data(tab_index):
 
 # --- BATCH UPDATE FUNKTION ---
 def update_batch_entry(name, input_pushups, input_pullups, input_dips):
-    """Speichert alle 3 Übungen auf einmal und aktualisiert die Total-Spalte"""
     try:
         client = get_google_sheet_client()
         sheet = client.open_by_key(SHEET_ID)
         ws_totals = sheet.get_worksheet(0)
         ws_logs = sheet.get_worksheet(1)
         
-        # 1. Totals aktualisieren
-        # Wir lesen die Zeile des Users, berechnen neu und schreiben zurück.
-        # Spaltenstruktur in Sheet: A=Name, B=Total, C=Pushups, D=Pullups, E=Dips
         cell = ws_totals.find(name)
         if not cell:
             st.error(f"User {name} nicht gefunden!")
@@ -257,10 +253,10 @@ def update_batch_entry(name, input_pushups, input_pullups, input_dips):
             
         row_num = cell.row
         # Werte holen (Spalten C, D, E -> Index 3, 4, 5)
-        # Wir holen die ganze Zeile (A bis E) als Liste
+        # Wir holen sicherheitshalber mehr Spalten
         row_values = ws_totals.row_values(row_num)
         
-        # Sicherstellen, dass die Liste lang genug ist (falls Zellen leer sind)
+        # Auffüllen falls leer
         while len(row_values) < 5:
             row_values.append("0")
             
@@ -268,20 +264,16 @@ def update_batch_entry(name, input_pushups, input_pullups, input_dips):
         current_pullups = int(row_values[3] or 0)
         current_dips = int(row_values[4] or 0)
         
-        # Neue Summen berechnen
         new_pushups = current_pushups + input_pushups
         new_pullups = current_pullups + input_pullups
         new_dips = current_dips + input_dips
         new_total = new_pushups + new_pullups + new_dips
         
-        # Zurückschreiben: Update Zellen B, C, D, E (Spalten 2-5)
-        # gspread range update ist effizienter als einzelne cells
         ws_totals.update_cell(row_num, 2, new_total)   # Total
         ws_totals.update_cell(row_num, 3, new_pushups) # Pushups
         ws_totals.update_cell(row_num, 4, new_pullups) # Pullups
         ws_totals.update_cell(row_num, 5, new_dips)    # Dips
         
-        # 2. Logs schreiben
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_entries = []
         msg_parts = []
@@ -311,13 +303,11 @@ def save_full_edits(edited_logs_df):
         client = get_google_sheet_client()
         sheet = client.open_by_key(SHEET_ID)
         
-        # 1. Logs überschreiben
         ws_logs = sheet.get_worksheet(1)
         ws_logs.clear()
         data_to_write = [edited_logs_df.columns.values.tolist()] + edited_logs_df.values.tolist()
         ws_logs.update(data_to_write)
         
-        # 2. Totals neu berechnen
         edited_logs_df['Amount'] = pd.to_numeric(edited_logs_df['Amount'], errors='coerce').fillna(0)
         pivot_totals = edited_logs_df.groupby(['Name', 'Exercise'])['Amount'].sum().unstack(fill_value=0)
         
@@ -325,7 +315,6 @@ def save_full_edits(edited_logs_df):
         
         final_data = []
         for name in all_names:
-            # Zeilenstruktur: Name, Total, Pushups, Pullups, Dips
             row = {'Name': name}
             
             p_val = int(pivot_totals.loc[name, 'Pushups']) if (name in pivot_totals.index and 'Pushups' in pivot_totals.columns) else 0
@@ -342,8 +331,6 @@ def save_full_edits(edited_logs_df):
             final_data.append(row)
             
         final_df = pd.DataFrame(final_data)
-        
-        # 3. Totals schreiben (Spaltenreihenfolge beachten)
         final_df = final_df[['Name', 'Total', 'Pushups', 'Pullups', 'Dips']]
         
         ws_totals = sheet.get_worksheet(0)
@@ -360,7 +347,6 @@ def save_full_edits(edited_logs_df):
 def render_track_html(current_df, display_date=None):
     if current_df.empty: return ""
     
-    # Sortieren basierend auf dem aktuellen Score
     df_sorted = current_df.sort_values('Score', ascending=False)
     leader_name = df_sorted.iloc[0]['Name']
     last_place_name = df_sorted.iloc[-1]['Name']
@@ -462,28 +448,34 @@ if df_totals.empty:
     st.warning("Warte auf Daten (oder DB Verbindung prüfen)...")
     st.stop()
 
-# --- DATEN VORBEREITUNG (FILTER LOGIK) ---
-# Wir berechnen für die Anzeige ein "Score" Feld basierend auf dem Filter
+# --- DATEN VORBEREITUNG (FILTER LOGIK + REINIGUNG) ---
 df_display = df_totals.copy()
+
+# 🔴 FIX: Zuerst ALLE Exercise-Spalten sauber in Zahlen umwandeln
 for ex in EXERCISES:
     if ex not in df_display.columns:
-        df_display[ex] = 0 
+        df_display[ex] = 0
+    else:
+        # Alles was kein numerischer Wert ist (z.B. ""), wird zu NaN und dann zu 0
+        df_display[ex] = pd.to_numeric(df_display[ex], errors='coerce').fillna(0)
 
+# Auch die 'Total' Spalte reinigen, falls sie existiert
+if 'Total' in df_display.columns:
+    df_display['Total'] = pd.to_numeric(df_display['Total'], errors='coerce').fillna(0)
+
+# Score berechnen
 if selected_filter == "Gesamt (Alle Punkte)":
-    # Wir nehmen die Total Spalte aus dem Sheet (oder summieren neu zur Sicherheit)
     if 'Total' in df_display.columns:
-        df_display['Score'] = pd.to_numeric(df_display['Total'], errors='coerce').fillna(0)
+        df_display['Score'] = df_display['Total']
     else:
         df_display['Score'] = df_display[EXERCISES].sum(axis=1)
 else:
-    # Nur die gewählte Spalte
     df_display['Score'] = df_display[selected_filter]
 
 # --- SUCCESS & SHARE LOGIC ---
 if 'last_log' in st.session_state:
     log_data = st.session_state.last_log
     
-    # Leaderboard String für WhatsApp
     df_sorted_for_wa = df_display.sort_values('Score', ascending=False)
     leaderboard_text = ""
     rank = 1
@@ -506,7 +498,6 @@ if 'last_log' in st.session_state:
     del st.session_state.last_log
 
 # --- ANIMATION LOGIC ---
-# Die Animation nutzt nun auch die gefilterten Logs
 if not st.session_state.has_animated and not df_logs.empty:
     
     with skip_btn_placeholder:
@@ -536,7 +527,6 @@ if not st.session_state.has_animated and not df_logs.empty:
             amount = row['Amount']
             exercise = row.get('Exercise', 'Pushups')
             
-            # Filter Logik für Animation
             points_to_add = 0
             if selected_filter == "Gesamt (Alle Punkte)":
                 points_to_add = amount
@@ -615,13 +605,14 @@ with col1:
         name = row['Name']
         score = int(row['Score'])
         
-        # Breakdown String (nur bei Gesamt interessant)
+        # Breakdown String - 🔴 HIER WAR DER FEHLER
         detail_str = ""
         if selected_filter == "Gesamt (Alle Punkte)":
             parts = []
             for ex in EXERCISES:
-                val = int(row.get(ex, 0))
-                parts.append(f"{ex[:2].upper()}:{val}") # PU:100, DI:50
+                # Da wir oben "gereinigt" haben, ist sichergestellt, dass es Zahlen sind
+                val = int(row.get(ex, 0)) 
+                parts.append(f"{ex[:2].upper()}:{val}")
             detail_str = " | ".join(parts)
         
         # Prognose
