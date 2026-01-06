@@ -26,8 +26,8 @@ st.markdown("""
         border-radius: 10px; 
         margin-bottom: 20px; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
-        position: relative; /* Wichtig für absolute Positionierung der Linien */
-        overflow: hidden; /* Damit Linien nicht rausstehen */
+        position: relative; 
+        overflow: hidden; 
     }
     .lane { border-bottom: 3px dashed #6b7c62; padding: 20px 0; position: relative; height: 140px; z-index: 5; }
     .horse-container { position: absolute; top: 10px; transition: left 0.5s ease-in-out; z-index: 20; text-align: center; width: 120px; transform: translateX(-50%); }
@@ -36,20 +36,21 @@ st.markdown("""
     .finish-line { position: absolute; right: 0; top: 0; bottom: 0; width: 15px; background-image: repeating-linear-gradient(45deg, #000, #000 10px, #fff 10px, #fff 20px); opacity: 0.6; z-index: 15; }
     .metric-card { background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 10px; }
     
-    /* NEU: Meilensteine (1000er Linien) */
+    /* Meilensteine (1000er Linien) */
     .milestone-line {
         position: absolute;
         top: 0;
         bottom: 0;
         border-left: 2px dashed rgba(255, 255, 255, 0.2);
-        z-index: 1; /* Hinter den Pferden */
+        z-index: 1; 
     }
     .milestone-text {
         position: absolute;
         bottom: 2px;
         font-size: 10px;
         color: rgba(255, 255, 255, 0.4);
-        transform: translateX(-50%); /* Zentriert den Text auf der Linie */
+        transform: translateX(-50%); 
+        white-space: nowrap; /* Verhindert Umbruch */
     }
 
     .date-display {
@@ -131,7 +132,6 @@ def save_full_edits(edited_logs_df):
         for index, row in new_totals.iterrows():
             idx = final_totals.index[final_totals['Name'] == row['Name']].tolist()
             if idx:
-                # KORREKTE SPALTE VERWENDEN
                 final_totals.at[idx[0], 'Pushups'] = row['Amount']
         
         ws_totals = sheet.get_worksheet(0)
@@ -157,14 +157,14 @@ def render_track_html(current_df, display_date=None):
     
     track_html = '<div class="racetrack">'
     
-    # NEU: Meilensteine generieren (1000, 2000, ... 9000)
+    # MEILENSTEINE (Ohne Einrückung!)
     for m in range(1000, GOAL, 1000):
         pct = (m / GOAL) * 100
         track_html += f"""
-        <div class="milestone-line" style="left: {pct}%;">
-            <span class="milestone-text">{int(m/1000)}k</span>
-        </div>
-        """
+<div class="milestone-line" style="left: {pct}%;">
+    <span class="milestone-text">{int(m/1000)}k</span>
+</div>
+"""
 
     if display_date:
         track_html += f'<div class="date-display">📅 {display_date}</div>'
