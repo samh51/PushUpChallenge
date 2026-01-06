@@ -180,6 +180,7 @@ text-decoration: none;
 width: 100%;
 margin-top: 10px;
 box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+font-family: sans-serif;
 }
 .whatsapp-btn:hover {
 background-color: #128C7E;
@@ -227,7 +228,6 @@ def update_single_entry(name, new_reps):
         ws_logs = sheet.get_worksheet(1)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ws_logs.append_row([timestamp, name, new_reps])
-        
         return True
     except Exception as e:
         st.error(f"Error updating: {e}")
@@ -323,30 +323,9 @@ def render_track_html(current_df, display_date=None):
 st.title("🐎 10k Pushup Derby")
 
 # Platzhalter definieren
-share_placeholder = st.empty() # NEU: Für die Erfolgsmeldung ganz oben
+share_placeholder = st.empty()
 race_placeholder = st.empty()
 skip_btn_placeholder = st.empty()
-
-# --- SUCCESS & SHARE LOGIC (Nach Reload) ---
-# Wenn wir gerade einen Eintrag gemacht haben, zeigen wir das HIER an
-if 'last_log' in st.session_state:
-    log_data = st.session_state.last_log
-    
-    # WhatsApp Link generieren
-    wa_text = f"🐎 *Pushup Update!*\n*{log_data['name']}* hat gerade *{log_data['amount']}* Pushups gemacht! 💪\n\nStandings checken: https://pushup-race.streamlit.app"
-    wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_text)}"
-    
-    with share_placeholder.container():
-        st.success(f"✅ {log_data['amount']} Pushups für {log_data['name']} gespeichert!")
-        st.markdown(f"""
-        <a href="{wa_url}" target="_blank" class="whatsapp-btn">
-            📢 In WhatsApp-Gruppe teilen
-        </a>
-        """, unsafe_allow_html=True)
-        st.write("") # Abstand
-    
-    # State löschen, damit es beim nächsten Reload weg ist
-    del st.session_state.last_log
 
 if 'has_animated' not in st.session_state:
     st.session_state.has_animated = False
@@ -358,6 +337,34 @@ df_logs = get_data(1)
 if df_totals.empty:
     st.warning("Warte auf Daten...")
     st.stop()
+
+# --- SUCCESS & SHARE LOGIC (JETZT NACH DEM DATEN-LADEN) ---
+if 'last_log' in st.session_state:
+    log_data = st.session_state.last_log
+    
+    # Leaderboard String bauen
+    df_sorted_for_wa = df_totals.sort_values('Pushups', ascending=False)
+    leaderboard_text = ""
+    rank = 1
+    for _, row in df_sorted_for_wa.iterrows():
+        leaderboard_text += f"{rank}. {row['Name']}: {int(row['Pushups'])}\n"
+        rank += 1
+    
+    # WhatsApp Text zusammenbauen
+    wa_text = f"🐎 *Pushup Update!*\n*{log_data['name']}* hat gerade *{log_data['amount']}* Pushups gemacht! 💪\n\n🏆 *Aktueller Stand:*\n{leaderboard_text}\n🔗 https://pushup-race.streamlit.app"
+    wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_text)}"
+    
+    with share_placeholder.container():
+        st.success(f"✅ {log_data['amount']} Pushups für {log_data['name']} gespeichert!")
+        st.markdown(f"""
+        <a href="{wa_url}" target="_blank" class="whatsapp-btn">
+            📢 In WhatsApp-Gruppe teilen
+        </a>
+        """, unsafe_allow_html=True)
+        st.write("") # Abstand
+    
+    # State löschen
+    del st.session_state.last_log
 
 # --- ANIMATION LOGIC ---
 if not st.session_state.has_animated and not df_logs.empty:
@@ -423,8 +430,6 @@ with st.form("log_form", clear_on_submit=True):
         with st.spinner("Speichere..."):
             success = update_single_entry(who, amount)
             if success:
-                # Wir speichern den Erfolg im Session State und laden neu
-                # Damit werden die Grafiken aktualisiert UND wir können den Share-Button anzeigen
                 st.session_state.last_log = {'name': who, 'amount': amount}
                 st.rerun()
 
