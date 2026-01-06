@@ -136,7 +136,6 @@ st.markdown("""
         height: 100%; 
     }
     
-    /* Leaderboard Styling */
     .leader-row {
         display: flex;
         justify-content: space-between;
@@ -161,27 +160,10 @@ st.markdown("""
         font-weight: bold;
     }
     
-    .player-info {
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .player-name {
-        font-weight: bold;
-        color: #333;
-    }
-    
-    .forecast-date {
-        font-size: 11px;
-        color: #888;
-        margin-top: 2px;
-    }
-    
-    .score-display {
-        font-size: 16px;
-        font-weight: bold;
-        color: #3e4a38;
-    }
+    .player-info { display: flex; flex-direction: column; }
+    .player-name { font-weight: bold; color: #333; }
+    .forecast-date { font-size: 11px; color: #888; margin-top: 2px; }
+    .score-display { font-size: 16px; font-weight: bold; color: #3e4a38; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -314,6 +296,9 @@ def render_track_html(current_df, display_date=None):
     return track_html
 
 # --- MAIN APP ---
+# Sidebar Option für schnelles Eintragen
+skip_animation = st.sidebar.checkbox("⏩ Animation überspringen", value=False)
+
 st.title("🐎 10k Pushup Derby")
 
 race_placeholder = st.empty()
@@ -330,14 +315,15 @@ if df_totals.empty:
     st.stop()
 
 # --- ANIMATION LOGIC ---
-if not st.session_state.has_animated and not df_logs.empty:
+# Nur animieren, wenn NICHT übersprungen wird UND noch nicht animiert wurde
+if not skip_animation and not st.session_state.has_animated and not df_logs.empty:
     
     all_names = ["Kevin", "Sämi", "Eric", "Elia"]
     race_scores = {name: 0 for name in all_names}
     
     initial_df = pd.DataFrame([{'Name': n, 'Pushups': 0} for n in all_names])
     race_placeholder.markdown(render_track_html(initial_df, "Start"), unsafe_allow_html=True)
-    time.sleep(0.8)
+    time.sleep(0.5)
     
     if 'Timestamp' in df_logs.columns:
         df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
@@ -359,7 +345,7 @@ if not st.session_state.has_animated and not df_logs.empty:
             frame_df = pd.DataFrame(frame_data)
             
             race_placeholder.markdown(render_track_html(frame_df, display_date=date_str), unsafe_allow_html=True)
-            time.sleep(0.5)
+            time.sleep(0.3) # Etwas schneller für besseren Flow
 
     st.session_state.has_animated = True
 
@@ -384,7 +370,7 @@ if not df_logs.empty and 'Timestamp' in df_logs.columns:
 
 col1, col2 = st.columns(2)
 
-# LINKE KARTE: Leaderboard Liste MIT Prognose
+# LINKE KARTE: Leaderboard
 with col1:
     leaderboard_html = '<div class="metric-card">'
     leaderboard_html += '<h3 style="margin:0; font-size:16px; color:#666; margin-bottom:15px;">🏆 Leaderboard & Prognose</h3>'
@@ -394,7 +380,6 @@ with col1:
         name = row['Name']
         score = int(row['Pushups'])
         
-        # Individuelle Prognose berechnen
         forecast_str = "..."
         if score > 0:
             daily_rate = score / days_passed
@@ -410,17 +395,17 @@ with col1:
         else:
             forecast_str = "😴 Noch nicht gestartet"
 
-        # HTML OHNE Einrückung am Anfang der Zeile
+        # FIX: KEINE Einrückung beim HTML String
         leaderboard_html += f"""
 <div class="leader-row">
-    <div style="display:flex; align-items:center;">
-        <span class="rank-badge">{rank}</span>
-        <div class="player-info">
-            <span class="player-name">{name}</span>
-            <span class="forecast-date">{forecast_str}</span>
-        </div>
-    </div>
-    <span class="score-display">{score}</span>
+<div style="display:flex; align-items:center;">
+<span class="rank-badge">{rank}</span>
+<div class="player-info">
+<span class="player-name">{name}</span>
+<span class="forecast-date">{forecast_str}</span>
+</div>
+</div>
+<span class="score-display">{score}</span>
 </div>
 """
         rank += 1
@@ -430,27 +415,25 @@ with col1:
 
 # RECHTE KARTE: Renn-Statistik
 with col2:
+    # FIX: Auch hier KEINE Einrückung beim HTML String
     st.markdown(f"""
-    <div class="metric-card" style="text-align:center;">
-        <h3 style="margin:0; font-size:16px; color:#666;">📊 Renn-Status</h3>
-        
-        <div style="margin-top:20px;">
-            <p style="margin:0; color:#888; font-size:12px;">Aktueller Leader</p>
-            <h2 style="margin:5px 0; font-size:24px; color:#3e4a38;">{leader['Name']}</h2>
-        </div>
-
-        <div style="margin-top:20px;">
-            <p style="margin:0; color:#888; font-size:12px;">Noch offen bis zum Sieg</p>
-            <h2 style="margin:5px 0; font-size:32px; color:#d32f2f;">{int(remaining) if remaining > 0 else 0}</h2>
-            <p style="margin:0; color:#888; font-size:10px;">Pushups</p>
-        </div>
-
-        <div style="margin-top:20px; border-top:1px solid #eee; padding-top:10px;">
-            <p style="margin:0; font-size:11px; color:#666;">Rennen läuft seit:</p>
-            <p style="margin:0; font-weight:bold;">{days_passed} Tagen</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+<div class="metric-card" style="text-align:center;">
+<h3 style="margin:0; font-size:16px; color:#666;">📊 Renn-Status</h3>
+<div style="margin-top:20px;">
+<p style="margin:0; color:#888; font-size:12px;">Aktueller Leader</p>
+<h2 style="margin:5px 0; font-size:24px; color:#3e4a38;">{leader['Name']}</h2>
+</div>
+<div style="margin-top:20px;">
+<p style="margin:0; color:#888; font-size:12px;">Noch offen bis zum Sieg</p>
+<h2 style="margin:5px 0; font-size:32px; color:#d32f2f;">{int(remaining) if remaining > 0 else 0}</h2>
+<p style="margin:0; color:#888; font-size:10px;">Pushups</p>
+</div>
+<div style="margin-top:20px; border-top:1px solid #eee; padding-top:10px;">
+<p style="margin:0; font-size:11px; color:#666;">Rennen läuft seit:</p>
+<p style="margin:0; font-weight:bold;">{days_passed} Tagen</p>
+</div>
+</div>
+""", unsafe_allow_html=True)
 
 # 3. EINGABE FORMULAR
 st.divider()
