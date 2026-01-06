@@ -166,25 +166,28 @@ font-weight: bold;
 .forecast-date { font-size: 11px; color: #888; margin-top: 2px; }
 .score-display { font-size: 16px; font-weight: bold; color: #3e4a38; }
 
-/* Button Styling für WhatsApp Share */
+/* Button Styling für WhatsApp Share (Dunkleres Grün & kein Unterstrich) */
 .whatsapp-btn {
 display: inline-flex;
 align-items: center;
 justify-content: center;
-background-color: #25D366;
+background-color: #128C7E; /* Dunkleres WhatsApp Teal */
 color: white !important;
 font-weight: bold;
 padding: 10px 20px;
 border-radius: 8px;
-text-decoration: none;
+text-decoration: none !important; /* Kein Unterstrich erzwingen */
 width: 100%;
 margin-top: 10px;
 box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 font-family: sans-serif;
+transition: background-color 0.3s;
 }
 .whatsapp-btn:hover {
-background-color: #128C7E;
+background-color: #075E54; /* Noch dunkler beim Hover */
 box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+color: white !important;
+text-decoration: none !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -338,7 +341,7 @@ if df_totals.empty:
     st.warning("Warte auf Daten...")
     st.stop()
 
-# --- SUCCESS & SHARE LOGIC (JETZT NACH DEM DATEN-LADEN) ---
+# --- SUCCESS & SHARE LOGIC (NACH DATEN-LADEN) ---
 if 'last_log' in st.session_state:
     log_data = st.session_state.last_log
     
