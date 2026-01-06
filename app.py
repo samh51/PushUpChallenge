@@ -30,23 +30,21 @@ st.markdown("""
     box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 10px 20px rgba(0,0,0,0.3); 
     position: relative; 
     overflow: hidden;
-    padding: 20px 0px 20px 0px; 
+    /* Padding Oben stark erhöht (60px), damit das Datum Platz hat */
+    padding: 60px 0px 30px 0px; 
 }
 
 .lane { 
-    /* border-bottom entfernt, machen wir jetzt separat */
     padding: 15px 0; 
     position: relative; 
     height: 120px; 
 }
 
-/* Die gestrichelte Linie zwischen den Bahnen (Horizontale Begrenzung) */
+/* Basis-Stil für horizontale Linien (Stil & Farbe kommen via Python inline) */
 .lane-divider {
     position: absolute;
-    bottom: 0;
-    left: 8.333%;  /* Startet erst bei der Startlinie */
-    right: 8.333%; /* Endet bei der Ziellinie */
-    border-bottom: 2px dashed rgba(255,255,255,0.15);
+    left: 8.333%; right: 8.333%; /* Buffer links/rechts einhalten */
+    border-bottom-width: 2px;
     z-index: 1;
 }
 
@@ -84,35 +82,29 @@ st.markdown("""
 }
 
 /* --- GRID SYSTEM --- */
-/* Wir nutzen top/bottom Werte > 0, damit die Linien nicht den Rand berühren */
+/* Vertikale Linien müssen jetzt beim neuen top-padding (60px) anfangen */
+.grid-line-base {
+    position: absolute;
+    top: 60px; bottom: 30px; 
+    pointer-events: none;
+}
 
 .grid-line {
-    position: absolute;
-    top: 20px; bottom: 35px; /* BUFFER OBEN UND UNTEN */
     border-left: 1px dashed rgba(255, 255, 255, 0.25); 
     z-index: 2; 
-    pointer-events: none;
 }
 
 .start-line-marker {
-    position: absolute;
-    top: 20px; bottom: 35px; /* BUFFER OBEN UND UNTEN */
     border-left: 2px solid rgba(255, 255, 255, 0.6); 
     z-index: 3; 
-    pointer-events: none;
 }
 
 .major-line {
-    position: absolute;
-    top: 20px; bottom: 35px; /* BUFFER OBEN UND UNTEN */
     border-left: 3px solid rgba(255, 255, 255, 0.5); 
     z-index: 3; 
-    pointer-events: none;
 }
 
 .finish-line-marker {
-    position: absolute;
-    top: 20px; bottom: 35px; /* BUFFER OBEN UND UNTEN */
     width: 15px;
     background-image: 
     linear-gradient(45deg, #000 25%, transparent 25%), 
@@ -123,12 +115,11 @@ st.markdown("""
     background-color: rgba(255,255,255,0.9);
     z-index: 4;
     transform: translateX(-50%);
-    pointer-events: none;
 }
 
 .grid-text {
     position: absolute;
-    bottom: -20px; /* Text unterhalb der Linie positionieren */
+    bottom: -35px; /* Weiter nach unten geschoben */
     font-size: 10px;
     color: rgba(255, 255, 255, 0.6);
     transform: translateX(-50%); 
@@ -140,7 +131,7 @@ st.markdown("""
 .grid-text-major {
     font-size: 12px;
     color: rgba(255, 255, 255, 1.0);
-    bottom: -22px;
+    bottom: -37px; /* Weiter nach unten geschoben */
 }
 
 .date-display {
@@ -320,19 +311,20 @@ def render_track_html(current_df, display_date=None):
         pos_percent = (k + 1) * segment_width
         
         label = f"{k}k"
-        css_class = "grid-line"
+        # Basis-Klasse für Positionierung + spezifische Klasse für Stil
+        css_class = "grid-line-base grid-line"
         text_class = "grid-text"
         
         if k == 0:
             label = "Start"
-            css_class = "start-line-marker"
+            css_class = "grid-line-base start-line-marker"
             text_class = "grid-text grid-text-major"
         elif k == 5:
-            css_class = "major-line" 
+            css_class = "grid-line-base major-line" 
             text_class = "grid-text grid-text-major"
         elif k == 10:
             label = "Finish"
-            css_class = "finish-line-marker"
+            css_class = "grid-line-base finish-line-marker"
             text_class = "grid-text grid-text-major"
             
         track_html += f"""
@@ -347,7 +339,8 @@ def render_track_html(current_df, display_date=None):
     
     all_names = ["Kevin", "Sämi", "Eric", "Elia"] 
     
-    for name in all_names:
+    # --- PFERDE & BAHNEN LOOP ---
+    for i, name in enumerate(all_names):
         user_row = current_df[current_df['Name'] == name]
         raw_score = user_row.iloc[0]['Pushups'] if not user_row.empty else 0
         
@@ -364,9 +357,24 @@ def render_track_html(current_df, display_date=None):
         else:
             current_icon = IMG_MIDDLE
             
+        # --- LOGIK FÜR HORIZONTALE LINIEN (SOLID/DASHED) ---
+        top_divider_html = ""
+        bottom_style = "dashed"
+        bottom_color = "rgba(255,255,255,0.15)" # Etwas transparenter für die Mitte
+
+        # Erste Bahn: Braucht einen soliden Divider OBEN (top: 0)
+        if i == 0:
+            top_divider_html = '<div class="lane-divider" style="top: 0; border-bottom-style: solid; border-bottom-color: rgba(255,255,255,0.3);"></div>'
+
+        # Letzte Bahn: Der UNTERE Divider wird solid
+        if i == len(all_names) - 1:
+            bottom_style = "solid"
+            bottom_color = "rgba(255,255,255,0.3)" # Heller für solid
+
         track_html += f"""
 <div class="lane">
-<div class="lane-divider"></div>
+{top_divider_html}
+<div class="lane-divider" style="bottom: 0; border-bottom-style: {bottom_style}; border-bottom-color: {bottom_color};"></div>
 <div class="horse-container" style="left: {final_pos_percent}%;">
 <img src="{current_icon}" class="race-img">
 <span class="name-tag">{name} ({int(raw_score)})</span>
