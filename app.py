@@ -129,33 +129,58 @@ st.markdown("""
         background: linear-gradient(135deg, #f0f2f6 0%, #ffffff 100%);
         padding: 20px; 
         border-radius: 15px; 
-        text-align: left; /* Linksbündig für Liste */
+        text-align: left; 
         margin-bottom: 10px; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         border: 1px solid #e0e0e0;
-        height: 100%; /* Gleiche Höhe erzwingen */
+        height: 100%; 
     }
     
-    /* Styling für die Leaderboard Liste */
+    /* Leaderboard Styling */
     .leader-row {
         display: flex;
         justify-content: space-between;
-        padding: 4px 0;
+        align-items: center;
+        padding: 8px 0;
         border-bottom: 1px solid #eee;
         font-size: 14px;
     }
     .leader-row:last-child { border-bottom: none; }
+    
     .rank-badge {
         background-color: #3e4a38;
         color: white;
         border-radius: 50%;
-        width: 20px;
-        height: 20px;
+        width: 24px;
+        height: 24px;
         text-align: center;
         font-size: 12px;
-        line-height: 20px;
+        line-height: 24px;
         display: inline-block;
-        margin-right: 8px;
+        margin-right: 10px;
+        font-weight: bold;
+    }
+    
+    .player-info {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .player-name {
+        font-weight: bold;
+        color: #333;
+    }
+    
+    .forecast-date {
+        font-size: 11px;
+        color: #888;
+        margin-top: 2px;
+    }
+    
+    .score-display {
+        font-size: 16px;
+        font-weight: bold;
+        color: #3e4a38;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -347,62 +372,83 @@ df_sorted = df_totals.sort_values('Pushups', ascending=False)
 leader = df_sorted.iloc[0]
 remaining = GOAL - leader['Pushups']
 
-# --- PROGNOSE BERECHNUNG ---
-forecast_text = "Nicht berechenbar"
-if not df_logs.empty:
-    # 1. Startdatum finden
-    if 'Timestamp' in df_logs.columns:
-        df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
-        start_date = df_logs['Timestamp'].min()
-        
-        # 2. Tage seit Start
-        days_passed = (datetime.now() - start_date).days
-        days_passed = max(1, days_passed) # Vermeidung von Division durch 0
-        
-        # 3. Rate des Leaders berechnen
-        leader_total = leader['Pushups']
-        daily_rate = leader_total / days_passed
-        
-        if daily_rate > 0:
-            days_to_go = remaining / daily_rate
-            finish_date = datetime.now() + timedelta(days=days_to_go)
-            forecast_text = finish_date.strftime("%d.%m.%Y")
-        else:
-            forecast_text = "Stillstand"
+# --- VORBEREITUNG PROGNOSE DATEN ---
+start_date = datetime.now()
+days_passed = 1
+
+if not df_logs.empty and 'Timestamp' in df_logs.columns:
+    df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
+    start_date = df_logs['Timestamp'].min()
+    days_passed = (datetime.now() - start_date).days
+    days_passed = max(1, days_passed)
 
 col1, col2 = st.columns(2)
 
-# LINKE KARTE: Leaderboard Liste
+# LINKE KARTE: Leaderboard Liste MIT Prognose
 with col1:
     leaderboard_html = '<div class="metric-card">'
-    leaderboard_html += '<h3 style="margin:0; font-size:16px; color:#666; margin-bottom:10px;">🏆 Leaderboard</h3>'
+    leaderboard_html += '<h3 style="margin:0; font-size:16px; color:#666; margin-bottom:15px;">🏆 Leaderboard & Prognose</h3>'
     
     rank = 1
     for index, row in df_sorted.iterrows():
-        # Highlight für den Leader
-        style = "font-weight:bold; color:#2d3b26;" if rank == 1 else "color:#555;"
+        name = row['Name']
+        score = int(row['Pushups'])
+        
+        # Individuelle Prognose berechnen
+        forecast_str = "..."
+        if score > 0:
+            daily_rate = score / days_passed
+            remaining_for_player = GOAL - score
+            if remaining_for_player <= 0:
+                forecast_str = "🏁 IM ZIEL!"
+            elif daily_rate > 0:
+                days_to_go = remaining_for_player / daily_rate
+                finish_date = datetime.now() + timedelta(days=days_to_go)
+                forecast_str = f"🏁 Ziel: {finish_date.strftime('%d.%m.%y')}"
+            else:
+                forecast_str = "⏸️ Stillstand"
+        else:
+            forecast_str = "😴 Noch nicht gestartet"
+
+        # HTML OHNE Einrückung am Anfang der Zeile
         leaderboard_html += f"""
-        <div class="leader-row" style="{style}">
-            <span><span class="rank-badge">{rank}</span> {row['Name']}</span>
-            <span>{int(row['Pushups'])}</span>
+<div class="leader-row">
+    <div style="display:flex; align-items:center;">
+        <span class="rank-badge">{rank}</span>
+        <div class="player-info">
+            <span class="player-name">{name}</span>
+            <span class="forecast-date">{forecast_str}</span>
         </div>
-        """
+    </div>
+    <span class="score-display">{score}</span>
+</div>
+"""
         rank += 1
         
     leaderboard_html += '</div>'
     st.markdown(leaderboard_html, unsafe_allow_html=True)
 
-# RECHTE KARTE: Ziel & Prognose
+# RECHTE KARTE: Renn-Statistik
 with col2:
     st.markdown(f"""
     <div class="metric-card" style="text-align:center;">
-        <h3 style="margin:0; font-size:16px; color:#666;">🏁 To Win</h3>
-        <h2 style="margin:10px 0; font-size:32px; color:#3e4a38;">{int(remaining) if remaining > 0 else 0}</h2>
-        <p style="margin:0; color:#888; font-size:12px;">Pushups fehlen dem Leader</p>
-        <hr style="margin: 10px 0; border: 0; border-top: 1px solid #eee;">
-        <p style="margin:0; font-size:12px; color:#666;">Voraussichtliches Ziel:</p>
-        <h3 style="margin:5px 0; color:#d32f2f;">📅 {forecast_text}</h3>
-        <p style="font-size:10px; color:#999;">(bei aktuellem Tempo)</p>
+        <h3 style="margin:0; font-size:16px; color:#666;">📊 Renn-Status</h3>
+        
+        <div style="margin-top:20px;">
+            <p style="margin:0; color:#888; font-size:12px;">Aktueller Leader</p>
+            <h2 style="margin:5px 0; font-size:24px; color:#3e4a38;">{leader['Name']}</h2>
+        </div>
+
+        <div style="margin-top:20px;">
+            <p style="margin:0; color:#888; font-size:12px;">Noch offen bis zum Sieg</p>
+            <h2 style="margin:5px 0; font-size:32px; color:#d32f2f;">{int(remaining) if remaining > 0 else 0}</h2>
+            <p style="margin:0; color:#888; font-size:10px;">Pushups</p>
+        </div>
+
+        <div style="margin-top:20px; border-top:1px solid #eee; padding-top:10px;">
+            <p style="margin:0; font-size:11px; color:#666;">Rennen läuft seit:</p>
+            <p style="margin:0; font-weight:bold;">{days_passed} Tagen</p>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
