@@ -453,7 +453,7 @@ if not df_logs.empty and 'Timestamp' in df_logs.columns:
 
 col1, col2 = st.columns(2)
 
-# LINKE KARTE: Leaderboard mit Ø Stats
+# LINKE KARTE: Leaderboard mit Ø Stats & Prognose
 with col1:
     leaderboard_html = '<div class="metric-card">'
     leaderboard_html += '<h3 style="margin:0; font-size:16px; color:#666; margin-bottom:15px;">🏆 Leaderboard</h3>'
@@ -464,8 +464,18 @@ with col1:
         score = int(row['Pushups'])
         
         daily_avg = 0
+        forecast_str = "Start?"
+        
         if score > 0:
             daily_avg = score / days_passed
+            remaining_for_player = GOAL - score
+            
+            if remaining_for_player <= 0:
+                forecast_str = "🏆 Ziel erreicht!"
+            else:
+                days_to_go = remaining_for_player / daily_avg
+                finish_date = datetime.now() + timedelta(days=days_to_go)
+                forecast_str = f"🏁 {finish_date.strftime('%d.%m.%Y')}"
 
         leaderboard_html += f"""
 <div class="leader-row">
@@ -473,7 +483,7 @@ with col1:
 <span class="rank-badge">{rank}</span>
 <div class="player-info">
 <span class="player-name">{name}</span>
-<span class="forecast-date">Ø {daily_avg:.1f} / Tag</span>
+<span class="forecast-date">Ø {daily_avg:.1f} / Tag • {forecast_str}</span>
 </div>
 </div>
 <span class="score-display">{score}</span>
