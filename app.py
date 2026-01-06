@@ -30,8 +30,9 @@ st.markdown("""
     box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 10px 20px rgba(0,0,0,0.3); 
     position: relative; 
     overflow: hidden;
-    /* Padding Oben stark erhöht (60px), damit das Datum Platz hat */
-    padding: 60px 0px 30px 0px; 
+    /* Oben: 60px Platz für Datum */
+    /* Unten: 40px Platz für die zentrierten 1000er Markierungen */
+    padding: 60px 0px 40px 0px; 
 }
 
 .lane { 
@@ -40,10 +41,10 @@ st.markdown("""
     height: 120px; 
 }
 
-/* Basis-Stil für horizontale Linien (Stil & Farbe kommen via Python inline) */
+/* Basis-Stil für horizontale Linien */
 .lane-divider {
     position: absolute;
-    left: 8.333%; right: 8.333%; /* Buffer links/rechts einhalten */
+    left: 8.333%; right: 8.333%; /* Buffer links/rechts */
     border-bottom-width: 2px;
     z-index: 1;
 }
@@ -82,10 +83,10 @@ st.markdown("""
 }
 
 /* --- GRID SYSTEM --- */
-/* Vertikale Linien müssen jetzt beim neuen top-padding (60px) anfangen */
+/* Linien gehen von top:60px bis bottom:40px */
 .grid-line-base {
     position: absolute;
-    top: 60px; bottom: 30px; 
+    top: 60px; bottom: 40px; 
     pointer-events: none;
 }
 
@@ -117,9 +118,10 @@ st.markdown("""
     transform: translateX(-50%);
 }
 
+/* Text Positionierung im unteren 40px Buffer */
 .grid-text {
     position: absolute;
-    bottom: -35px; /* Weiter nach unten geschoben */
+    bottom: -32px; /* Ziemlich genau mittig im 40px Buffer */
     font-size: 10px;
     color: rgba(255, 255, 255, 0.6);
     transform: translateX(-50%); 
@@ -131,7 +133,7 @@ st.markdown("""
 .grid-text-major {
     font-size: 12px;
     color: rgba(255, 255, 255, 1.0);
-    bottom: -37px; /* Weiter nach unten geschoben */
+    bottom: -34px; 
 }
 
 .date-display {
@@ -311,7 +313,7 @@ def render_track_html(current_df, display_date=None):
         pos_percent = (k + 1) * segment_width
         
         label = f"{k}k"
-        # Basis-Klasse für Positionierung + spezifische Klasse für Stil
+        # Basis-Klasse für Positionierung
         css_class = "grid-line-base grid-line"
         text_class = "grid-text"
         
@@ -357,19 +359,19 @@ def render_track_html(current_df, display_date=None):
         else:
             current_icon = IMG_MIDDLE
             
-        # --- LOGIK FÜR HORIZONTALE LINIEN (SOLID/DASHED) ---
+        # --- LOGIK FÜR HORIZONTALE LINIEN ---
         top_divider_html = ""
         bottom_style = "dashed"
-        bottom_color = "rgba(255,255,255,0.15)" # Etwas transparenter für die Mitte
+        bottom_color = "rgba(255,255,255,0.15)" 
 
-        # Erste Bahn: Braucht einen soliden Divider OBEN (top: 0)
+        # Erste Bahn: Solid Linie OBEN
         if i == 0:
             top_divider_html = '<div class="lane-divider" style="top: 0; border-bottom-style: solid; border-bottom-color: rgba(255,255,255,0.3);"></div>'
 
-        # Letzte Bahn: Der UNTERE Divider wird solid
+        # Letzte Bahn: Solid Linie UNTEN
         if i == len(all_names) - 1:
             bottom_style = "solid"
-            bottom_color = "rgba(255,255,255,0.3)" # Heller für solid
+            bottom_color = "rgba(255,255,255,0.3)" 
 
         track_html += f"""
 <div class="lane">
