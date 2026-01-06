@@ -5,6 +5,9 @@ from streamlit_gsheets import GSheetsConnection
 # --- CONFIGURATION ---
 GOAL = 10000
 
+# 🔴 PASTE YOUR GOOGLE SHEET LINK HERE (between the quotes):
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM/edit?gid=0#gid=0"
+
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Pushup Derby", page_icon="🐎", layout="centered")
 
@@ -58,31 +61,37 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- DATA CONNECTION ---
-# This automatically finds the credentials in your secrets.toml
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def get_data():
     # ttl=0 ensures we don't cache old data
     try:
-        df = conn.read(ttl=0)
+        # We explicitly pass the URL here to avoid the "Spreadsheet must be specified" error
+        df = conn.read(spreadsheet=SHEET_URL, ttl=0)
+        
         # Ensure column types are correct
         if not df.empty:
+            # Clean up the data if necessary
             df['Pushups'] = pd.to_numeric(df['Pushups'], errors='coerce').fillna(0)
         return df
     except Exception as e:
-        st.error(f"Error reading sheet. Check your secrets.toml! Error: {e}")
+        st.error(f"Error reading sheet. Check that your link is correct! Error: {e}")
         return pd.DataFrame()
 
 def update_data(df, name, new_reps):
-    # Find the row for the selected user
-    user_idx = df[df['Name'] == name].index[0]
-    
-    # Update the local dataframe
-    df.at[user_idx, 'Pushups'] += new_reps
-    
-    # Write the ENTIRE updated dataframe back to Google Sheets
-    conn.update(data=df)
-    return df
+    try:
+        # Find the row for the selected user
+        user_idx = df[df['Name'] == name].index[0]
+        
+        # Update the local dataframe
+        df.at[user_idx, 'Pushups'] += new_reps
+        
+        # Write the ENTIRE updated dataframe back to Google Sheets
+        conn.update(spreadsheet=SHEET_URL, data=df)
+        return df
+    except Exception as e:
+        st.error(f"Error updating data: {e}")
+        return df
 
 # --- MAIN APP ---
 st.title("🐎 10k Pushup Derby")
@@ -91,8 +100,8 @@ st.title("🐎 10k Pushup Derby")
 df = get_data()
 
 if df.empty:
-    st.warning("Your Google Sheet appears to be empty or unreadable.")
-    st.info("Make sure your Sheet has two columns in the first row: 'Name' and 'Pushups'.")
+    st.warning("Could not read data.")
+    st.info("1. Check if SHEET_URL is correct in the code.\n2. Ensure your sheet has headers 'Name' and 'Pushups'.")
     st.stop()
 
 # 1. THE RACE TRACK VISUALIZATION
@@ -103,8 +112,7 @@ df_sorted = df.sort_values('Pushups', ascending=False)
 
 track_html = '<div class="racetrack">'
 
-for index, row in df.iterrows(): # We iterate original df to keep order consistent or use df_sorted for rank order
-    # Calculate percentage (capped at 90% so the horse emoji doesn't disappear off-screen)
+for index, row in df.iterrows(): 
     raw_score = row['Pushups']
     progress = min(90, (raw_score / GOAL) * 100)
     
