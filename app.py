@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -22,19 +22,16 @@ st.markdown("""
     <style>
     /* Das Haupt-Stadion */
     .racetrack { 
-        /* Schöner Rasen-Verlauf statt flacher Farbe */
         background: linear-gradient(180deg, #2d3b26 0%, #3e4a38 100%);
-        border: 8px solid #5d4037; /* Holz/Erde Rahmen */
+        border: 8px solid #5d4037; 
         border-radius: 15px; 
         margin-bottom: 20px; 
         box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 10px 20px rgba(0,0,0,0.3); 
         position: relative; 
         overflow: hidden;
-        /* WICHTIG: Padding links/rechts verhindert, dass Pferde abgeschnitten werden */
         padding: 20px 60px 20px 60px; 
     }
 
-    /* Die einzelnen Bahnen */
     .lane { 
         border-bottom: 2px dashed rgba(255,255,255,0.15); 
         padding: 15px 0; 
@@ -43,29 +40,26 @@ st.markdown("""
         z-index: 5; 
     }
 
-    /* Der Container, der sich bewegt */
     .horse-container { 
         position: absolute; 
         top: 15px; 
-        transition: left 0.5s cubic-bezier(0.25, 1, 0.5, 1); /* Weichere Animation */
+        transition: left 0.5s cubic-bezier(0.25, 1, 0.5, 1); 
         z-index: 20; 
         text-align: center; 
         width: 100px; 
-        transform: translateX(-50%); /* Zentriert das Pferd auf dem Punkt */
+        transform: translateX(-50%); 
     }
 
-    /* Das Bild (Avatar Look) */
     .race-img { 
         width: 70px; 
         height: 70px; 
-        object-fit: cover; /* Schneidet Bilder sauber zu */
-        border-radius: 50%; /* Macht das Bild rund */
-        border: 3px solid #fff; /* Weisser Rand */
-        box-shadow: 0 4px 8px rgba(0,0,0,0.5); /* Schatten für 3D Effekt */
+        object-fit: cover; 
+        border-radius: 50%; 
+        border: 3px solid #fff; 
+        box-shadow: 0 4px 8px rgba(0,0,0,0.5); 
         background-color: #fff;
     }
 
-    /* Das Namensschild */
     .name-tag { 
         display: inline-block;
         font-size: 12px; 
@@ -73,13 +67,12 @@ st.markdown("""
         color: #333; 
         background: rgba(255,255,255,0.9); 
         padding: 2px 8px; 
-        border-radius: 12px; /* Pillen-Form */
+        border-radius: 12px; 
         margin-top: 5px; 
         white-space: nowrap;
         box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
 
-    /* Startlinie */
     .start-line {
         position: absolute;
         left: 0; top: 0; bottom: 0; width: 4px;
@@ -88,7 +81,6 @@ st.markdown("""
         box-shadow: 0 0 5px rgba(255,255,255,0.5);
     }
 
-    /* Ziellinie (Schachbrett) */
     .finish-line { 
         position: absolute; 
         right: 0; top: 0; bottom: 0; width: 20px; 
@@ -104,11 +96,10 @@ st.markdown("""
         box-shadow: -2px 0 5px rgba(0,0,0,0.3);
     }
 
-    /* Meilensteine (Hintergrund) */
     .milestone-line {
         position: absolute;
         top: 0; bottom: 0;
-        border-left: 1px solid rgba(255, 255, 255, 0.1); /* Sehr dezent */
+        border-left: 1px solid rgba(255, 255, 255, 0.1); 
         z-index: 1; 
     }
     .milestone-text {
@@ -120,7 +111,6 @@ st.markdown("""
         font-family: sans-serif;
     }
 
-    /* Datumsanzeige Oben Rechts */
     .date-display {
         position: absolute;
         top: 15px;
@@ -139,10 +129,33 @@ st.markdown("""
         background: linear-gradient(135deg, #f0f2f6 0%, #ffffff 100%);
         padding: 20px; 
         border-radius: 15px; 
-        text-align: center; 
+        text-align: left; /* Linksbündig für Liste */
         margin-bottom: 10px; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         border: 1px solid #e0e0e0;
+        height: 100%; /* Gleiche Höhe erzwingen */
+    }
+    
+    /* Styling für die Leaderboard Liste */
+    .leader-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 0;
+        border-bottom: 1px solid #eee;
+        font-size: 14px;
+    }
+    .leader-row:last-child { border-bottom: none; }
+    .rank-badge {
+        background-color: #3e4a38;
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        text-align: center;
+        font-size: 12px;
+        line-height: 20px;
+        display: inline-block;
+        margin-right: 8px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -253,7 +266,7 @@ def render_track_html(current_df, display_date=None):
     for name in all_names:
         user_row = current_df[current_df['Name'] == name]
         raw_score = user_row.iloc[0]['Pushups'] if not user_row.empty else 0
-        progress = min(100, (raw_score / GOAL) * 100) # Capped at 100%
+        progress = min(100, (raw_score / GOAL) * 100)
         
         if name == leader_name and raw_score > 0:
             current_icon = IMG_FIRST
@@ -329,26 +342,67 @@ if not st.session_state.has_animated and not df_logs.empty:
 today_str = datetime.now().strftime('%d.%m.%Y')
 race_placeholder.markdown(render_track_html(df_totals, today_str), unsafe_allow_html=True)
 
-# 2. STATISTIKEN
+# 2. STATISTIKEN & LEADERBOARD
 df_sorted = df_totals.sort_values('Pushups', ascending=False)
 leader = df_sorted.iloc[0]
 remaining = GOAL - leader['Pushups']
 
+# --- PROGNOSE BERECHNUNG ---
+forecast_text = "Nicht berechenbar"
+if not df_logs.empty:
+    # 1. Startdatum finden
+    if 'Timestamp' in df_logs.columns:
+        df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
+        start_date = df_logs['Timestamp'].min()
+        
+        # 2. Tage seit Start
+        days_passed = (datetime.now() - start_date).days
+        days_passed = max(1, days_passed) # Vermeidung von Division durch 0
+        
+        # 3. Rate des Leaders berechnen
+        leader_total = leader['Pushups']
+        daily_rate = leader_total / days_passed
+        
+        if daily_rate > 0:
+            days_to_go = remaining / daily_rate
+            finish_date = datetime.now() + timedelta(days=days_to_go)
+            forecast_text = finish_date.strftime("%d.%m.%Y")
+        else:
+            forecast_text = "Stillstand"
+
 col1, col2 = st.columns(2)
+
+# LINKE KARTE: Leaderboard Liste
 with col1:
-    st.markdown(f"""
-    <div class="metric-card">
-        <h3 style="margin:0; font-size:16px; color:#666;">🏆 Leader</h3>
-        <h2 style="margin:0; font-size:28px;">{leader['Name']}</h2>
-        <p style="margin:0; color:#888;">{int(leader['Pushups'])} reps</p>
-    </div>
-    """, unsafe_allow_html=True)
+    leaderboard_html = '<div class="metric-card">'
+    leaderboard_html += '<h3 style="margin:0; font-size:16px; color:#666; margin-bottom:10px;">🏆 Leaderboard</h3>'
+    
+    rank = 1
+    for index, row in df_sorted.iterrows():
+        # Highlight für den Leader
+        style = "font-weight:bold; color:#2d3b26;" if rank == 1 else "color:#555;"
+        leaderboard_html += f"""
+        <div class="leader-row" style="{style}">
+            <span><span class="rank-badge">{rank}</span> {row['Name']}</span>
+            <span>{int(row['Pushups'])}</span>
+        </div>
+        """
+        rank += 1
+        
+    leaderboard_html += '</div>'
+    st.markdown(leaderboard_html, unsafe_allow_html=True)
+
+# RECHTE KARTE: Ziel & Prognose
 with col2:
     st.markdown(f"""
-    <div class="metric-card">
+    <div class="metric-card" style="text-align:center;">
         <h3 style="margin:0; font-size:16px; color:#666;">🏁 To Win</h3>
-        <h2 style="margin:0; font-size:28px;">{int(remaining) if remaining > 0 else 0}</h2>
-        <p style="margin:0; color:#888;">reps needed</p>
+        <h2 style="margin:10px 0; font-size:32px; color:#3e4a38;">{int(remaining) if remaining > 0 else 0}</h2>
+        <p style="margin:0; color:#888; font-size:12px;">Pushups fehlen dem Leader</p>
+        <hr style="margin: 10px 0; border: 0; border-top: 1px solid #eee;">
+        <p style="margin:0; font-size:12px; color:#666;">Voraussichtliches Ziel:</p>
+        <h3 style="margin:5px 0; color:#d32f2f;">📅 {forecast_text}</h3>
+        <p style="font-size:10px; color:#999;">(bei aktuellem Tempo)</p>
     </div>
     """, unsafe_allow_html=True)
 
