@@ -7,7 +7,7 @@ from google.oauth2.service_account import Credentials
 
 # --- CONFIGURATION ---
 GOAL = 10000
-# We use the Sheet ID from your secrets file
+# Your Sheet ID (This is safe to be in the code)
 SHEET_ID = "1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM"
 
 # 🖼️ IMAGE CONFIGURATION
@@ -34,25 +34,21 @@ st.markdown("""
 # --- DIRECT CONNECTION FUNCTION ---
 def get_google_sheet_client():
     try:
-        # 🟢 UPDATED: Specifically looks for [connections.gsheets]
-        if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-            secrets = st.secrets["connections"]["gsheets"]
-        else:
-            # Fallback for other formats
-            secrets = st.secrets
+        # 🟢 EXACT MATCH: We look ONLY for the [service_account] section
+        if "service_account" not in st.secrets:
+            st.error("Secrets Error: The [service_account] section is missing from secrets.toml.")
+            st.stop()
             
-        # Convert to standard dictionary to avoid Streamlit object issues
-        secrets_dict = dict(secrets)
+        secrets = st.secrets["service_account"]
 
         # Create the credentials object
         creds = Credentials.from_service_account_info(
-            secrets_dict,
+            secrets,
             scopes=["https://www.googleapis.com/auth/spreadsheets"],
         )
         return gspread.authorize(creds)
     except Exception as e:
         st.error(f"🔐 Authentication Error: {e}")
-        st.info("Ensure your secrets.toml has the [connections.gsheets] header.")
         st.stop()
 
 def get_data(tab_index):
