@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
+import urllib.parse
 from datetime import datetime, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
@@ -165,17 +166,24 @@ font-weight: bold;
 .forecast-date { font-size: 11px; color: #888; margin-top: 2px; }
 .score-display { font-size: 16px; font-weight: bold; color: #3e4a38; }
 
-/* Button Styling für Skip */
-.stButton > button {
+/* Button Styling für WhatsApp Share */
+.whatsapp-btn {
+display: inline-flex;
+align-items: center;
+justify-content: center;
+background-color: #25D366;
+color: white !important;
+font-weight: bold;
+padding: 10px 20px;
+border-radius: 8px;
+text-decoration: none;
 width: 100%;
-border-radius: 10px;
-background-color: #f0f2f6;
-border: 1px solid #d0d2d6;
-color: #333;
+margin-top: 10px;
+box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
-.stButton > button:hover {
-background-color: #e0e2e6;
-border-color: #c0c2c6;
+.whatsapp-btn:hover {
+background-color: #128C7E;
+box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -219,6 +227,7 @@ def update_single_entry(name, new_reps):
         ws_logs = sheet.get_worksheet(1)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ws_logs.append_row([timestamp, name, new_reps])
+        
         return True
     except Exception as e:
         st.error(f"Error updating: {e}")
@@ -270,10 +279,8 @@ def render_track_html(current_df, display_date=None):
     track_html = '<div class="racetrack">'
     
     # Meilensteine (1k bis 10k)
-    # Range läuft jetzt bis GOAL + 1, damit 10000 inkludiert ist
     for m in range(1000, GOAL + 1, 1000):
         pct = (m / GOAL) * 100
-        # Begrenzung auf 100% falls Rundungsfehler auftreten
         if pct > 100: pct = 100
         
         track_html += f"""
@@ -316,8 +323,30 @@ def render_track_html(current_df, display_date=None):
 st.title("🐎 10k Pushup Derby")
 
 # Platzhalter definieren
+share_placeholder = st.empty() # NEU: Für die Erfolgsmeldung ganz oben
 race_placeholder = st.empty()
 skip_btn_placeholder = st.empty()
+
+# --- SUCCESS & SHARE LOGIC (Nach Reload) ---
+# Wenn wir gerade einen Eintrag gemacht haben, zeigen wir das HIER an
+if 'last_log' in st.session_state:
+    log_data = st.session_state.last_log
+    
+    # WhatsApp Link generieren
+    wa_text = f"🐎 *Pushup Update!*\n*{log_data['name']}* hat gerade *{log_data['amount']}* Pushups gemacht! 💪\n\nStandings checken: https://pushup-race.streamlit.app"
+    wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_text)}"
+    
+    with share_placeholder.container():
+        st.success(f"✅ {log_data['amount']} Pushups für {log_data['name']} gespeichert!")
+        st.markdown(f"""
+        <a href="{wa_url}" target="_blank" class="whatsapp-btn">
+            📢 In WhatsApp-Gruppe teilen
+        </a>
+        """, unsafe_allow_html=True)
+        st.write("") # Abstand
+    
+    # State löschen, damit es beim nächsten Reload weg ist
+    del st.session_state.last_log
 
 if 'has_animated' not in st.session_state:
     st.session_state.has_animated = False
@@ -378,7 +407,7 @@ skip_btn_placeholder.empty()
 today_str = datetime.now().strftime('%d.%m.%Y')
 race_placeholder.markdown(render_track_html(df_totals, today_str), unsafe_allow_html=True)
 
-# --- 3. EINGABE FORMULAR (NEUE POSITION: DIREKT UNTER STADION) ---
+# --- 3. EINGABE FORMULAR ---
 with st.form("log_form", clear_on_submit=True):
     col_a, col_b = st.columns(2)
     names_list = ["Kevin", "Sämi", "Eric", "Elia"]
@@ -394,16 +423,15 @@ with st.form("log_form", clear_on_submit=True):
         with st.spinner("Speichere..."):
             success = update_single_entry(who, amount)
             if success:
-                st.success(f"{amount} Pushups für {who} eingetragen!")
-                time.sleep(1)
+                # Wir speichern den Erfolg im Session State und laden neu
+                # Damit werden die Grafiken aktualisiert UND wir können den Share-Button anzeigen
+                st.session_state.last_log = {'name': who, 'amount': amount}
                 st.rerun()
 
 # --- DATEN VORBEREITUNG FÜR STATS ---
 df_sorted = df_totals.sort_values('Pushups', ascending=False)
 leader = df_sorted.iloc[0]
 remaining = GOAL - leader['Pushups']
-
-# Gesamtsumme aller Teilnehmer
 total_team_reps = int(df_totals['Pushups'].sum())
 
 start_date = datetime.now()
@@ -427,7 +455,6 @@ with col1:
         name = row['Name']
         score = int(row['Pushups'])
         
-        # Durchschnitt berechnen
         daily_avg = 0
         if score > 0:
             daily_avg = score / days_passed
