@@ -7,6 +7,7 @@ from google.oauth2.service_account import Credentials
 
 # --- CONFIGURATION ---
 GOAL = 10000
+# We use the Sheet ID from your secrets file
 SHEET_ID = "1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM"
 
 # 🖼️ IMAGE CONFIGURATION
@@ -30,19 +31,17 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- DIRECT CONNECTION FUNCTION (ROBUST VERSION) ---
+# --- DIRECT CONNECTION FUNCTION ---
 def get_google_sheet_client():
-    # 🕵️‍♂️ SMART LOOKUP: Finds credentials wherever they are
     try:
+        # 🟢 UPDATED: Specifically looks for [connections.gsheets]
         if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
             secrets = st.secrets["connections"]["gsheets"]
-        elif "gsheets" in st.secrets:
-            secrets = st.secrets["gsheets"]
         else:
-            # Fallback: Assume keys are at the root level
+            # Fallback for other formats
             secrets = st.secrets
-
-        # Convert to standard dictionary
+            
+        # Convert to standard dictionary to avoid Streamlit object issues
         secrets_dict = dict(secrets)
 
         # Create the credentials object
@@ -53,7 +52,7 @@ def get_google_sheet_client():
         return gspread.authorize(creds)
     except Exception as e:
         st.error(f"🔐 Authentication Error: {e}")
-        st.info("Check your secrets.toml. It should contain 'private_key', 'client_email', etc.")
+        st.info("Ensure your secrets.toml has the [connections.gsheets] header.")
         st.stop()
 
 def get_data(tab_index):
@@ -96,7 +95,6 @@ def update_data(name, new_reps):
 def render_track_html(current_df):
     if current_df.empty: return ""
     
-    # Clean data to avoid errors
     if 'Pushups' in current_df.columns:
         current_df['Pushups'] = pd.to_numeric(current_df['Pushups'], errors='coerce').fillna(0)
     
@@ -154,11 +152,9 @@ if not st.session_state.has_animated and not df_logs.empty:
     race_placeholder.markdown(render_track_html(race_df), unsafe_allow_html=True)
     time.sleep(0.5)
     
-    # Clean logs
     if 'Amount' in df_logs.columns:
         df_logs['Amount'] = pd.to_numeric(df_logs['Amount'], errors='coerce').fillna(0)
         
-        # Replay Loop
         step = max(1, int(len(df_logs)/25))
         for i in range(0, len(df_logs), step):
             current_slice = df_logs.iloc[:i+1]
