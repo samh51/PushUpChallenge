@@ -2,13 +2,13 @@ import streamlit as st
 import pandas as pd
 import time
 from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
+import gspread
+from google.oauth2.service_account import Credentials
 
 # --- CONFIGURATION ---
 GOAL = 10000
-
-# 🔴 FIX 1: The "Pure" URL (No /edit, no parameters)
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM"
+# We only need the ID, not the full URL, to be safest
+SHEET_ID = "1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM"
 
 # 🖼️ IMAGE CONFIGURATION
 IMG_FIRST  = "https://media.istockphoto.com/id/1007282190/vector/horse-power-flame.jpg?s=612x612&w=0&k=20&c=uHnnvMTzaatfPblbFHdfhuJT7qLwsARF90oqH0dMCjA="
@@ -21,108 +21,69 @@ st.set_page_config(page_title="Pushup Derby", page_icon="🐎", layout="centered
 # Custom CSS
 st.markdown("""
     <style>
-    .racetrack {
-        background-color: #3e4a38;
-        padding: 10px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    }
-    .lane {
-        border-bottom: 3px dashed #6b7c62;
-        padding: 20px 0;
-        position: relative;
-        height: 140px;
-    }
-    .horse-container {
-        position: absolute;
-        top: 10px;
-        transition: left 0.5s ease-in-out;
-        z-index: 10;
-        text-align: center;
-        width: 120px;
-        transform: translateX(-50%);
-    }
-    .race-img {
-        width: 100px;
-        height: 100px;
-        object-fit: contain;
-        filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.5));
-        background-color: transparent;
-        border-radius: 10px; 
-    }
-    .name-tag {
-        display: block;
-        font-size: 16px;
-        font-weight: bold;
-        color: white;
-        background: rgba(0,0,0,0.7);
-        padding: 4px 10px;
-        border-radius: 6px;
-        margin-top: -5px;
-        white-space: nowrap;
-    }
-    .finish-line {
-        position: absolute;
-        right: 0; top: 0; bottom: 0; width: 15px;
-        background-image: repeating-linear-gradient(45deg, #000, #000 10px, #fff 10px, #fff 20px);
-        opacity: 0.6;
-        z-index: 0;
-    }
-    .metric-card {
-        background-color: #f0f2f6;
-        padding: 15px;
-        border-radius: 10px;
-        text-align: center;
-        margin-bottom: 10px;
-    }
+    .racetrack { background-color: #3e4a38; padding: 10px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    .lane { border-bottom: 3px dashed #6b7c62; padding: 20px 0; position: relative; height: 140px; }
+    .horse-container { position: absolute; top: 10px; transition: left 0.5s ease-in-out; z-index: 10; text-align: center; width: 120px; transform: translateX(-50%); }
+    .race-img { width: 100px; height: 100px; object-fit: contain; filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.5)); background-color: transparent; border-radius: 10px; }
+    .name-tag { display: block; font-size: 16px; font-weight: bold; color: white; background: rgba(0,0,0,0.7); padding: 4px 10px; border-radius: 6px; margin-top: -5px; white-space: nowrap; }
+    .finish-line { position: absolute; right: 0; top: 0; bottom: 0; width: 15px; background-image: repeating-linear-gradient(45deg, #000, #000 10px, #fff 10px, #fff 20px); opacity: 0.6; z-index: 0; }
+    .metric-card { background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- DATA CONNECTION ---
-conn = st.connection("gsheets", type=GSheetsConnection)
+# --- DIRECT CONNECTION FUNCTION ---
+def get_google_sheet_client():
+    # Load credentials directly from Streamlit secrets
+    # We use the same 'connections.gsheets' section you already have
+    secrets = st.secrets["connections"]["gsheets"]
+    
+    # Create the credentials object
+    creds = Credentials.from_service_account_info(
+        secrets,
+        scopes=[
+            "https://www.googleapis.com/auth/spreadsheets",
+        ],
+    )
+    return gspread.authorize(creds)
 
-def get_data(worksheet_index):
-    """
-    Load data by TAB INDEX (0 = First Tab, 1 = Second Tab)
-    This avoids errors if the tab is named 'Sheet1' vs 'Tabellenblatt1'
-    """
+def get_data(tab_index):
     try:
-        # Use index (0 or 1) instead of string name
-        df = conn.read(spreadsheet=SHEET_URL, worksheet=worksheet_index, ttl=0)
-        return df
+        client = get_google_sheet_client()
+        sheet = client.open_by_key(SHEET_ID)
+        worksheet = sheet.get_worksheet(tab_index)
+        
+        # Get all records as a list of dictionaries
+        data = worksheet.get_all_records()
+        return pd.DataFrame(data)
     except Exception as e:
-        st.error(f"❌ Error loading Tab #{worksheet_index}: {e}")
+        st.error(f"❌ Error loading Tab Index {tab_index}: {e}")
         return pd.DataFrame()
 
 def update_data(name, new_reps):
     try:
+        client = get_google_sheet_client()
+        sheet = client.open_by_key(SHEET_ID)
+        
         # 1. Update Totals (Tab 0)
-        df_totals = get_data(0)
-        if df_totals.empty: return False
+        ws_totals = sheet.get_worksheet(0)
         
-        user_idx = df_totals[df_totals['Name'] == name].index[0]
-        current_val = pd.to_numeric(df_totals.at[user_idx, 'Pushups'])
-        df_totals.at[user_idx, 'Pushups'] = current_val + new_reps
-        
-        # Write back to Tab 0
-        conn.update(spreadsheet=SHEET_URL, worksheet=0, data=df_totals)
+        # Find the cell to update. 
+        # We assume Names are in Col A (1) and Values in Col B (2)
+        cell = ws_totals.find(name)
+        if cell:
+            # Get current value (cell.row, column 2)
+            current_val = int(ws_totals.cell(cell.row, 2).value or 0)
+            new_total = current_val + new_reps
+            ws_totals.update_cell(cell.row, 2, new_total)
+        else:
+            st.error(f"Could not find name {name} in sheet.")
+            return False
 
         # 2. Update Logs (Tab 1)
-        df_logs = get_data(1)
-        new_entry = pd.DataFrame([{
-            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Name": name,
-            "Amount": new_reps
-        }])
+        ws_logs = sheet.get_worksheet(1)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ws_logs.append_row([timestamp, name, new_reps])
         
-        if df_logs.empty:
-            df_updated_logs = new_entry
-        else:
-            df_updated_logs = pd.concat([df_logs, new_entry], ignore_index=True)
-            
-        # Write back to Tab 1
-        conn.update(spreadsheet=SHEET_URL, worksheet=1, data=df_updated_logs)
         return True
     except Exception as e:
         st.error(f"Error updating: {e}")
@@ -137,18 +98,11 @@ def render_track_html(current_df):
     last_place_name = df_sorted.iloc[-1]['Name']
     
     track_html = '<div class="racetrack">'
-    
-    # HARDCODED NAMES to prevent lanes from jumping around
     all_names = ["Kevin", "Sämi", "Eric", "Elia"] 
     
     for name in all_names:
         user_row = current_df[current_df['Name'] == name]
-        
-        if not user_row.empty:
-            raw_score = user_row.iloc[0]['Pushups']
-        else:
-            raw_score = 0
-            
+        raw_score = user_row.iloc[0]['Pushups'] if not user_row.empty else 0
         progress = min(90, (raw_score / GOAL) * 100)
         
         if name == leader_name and raw_score > 0:
@@ -179,35 +133,28 @@ if 'has_animated' not in st.session_state:
     st.session_state.has_animated = False
 
 # --- LOAD DATA ---
-# 🔴 FIX 2: Load by Index (0 = Totals, 1 = Logs)
-df_totals = get_data(0)
-df_logs = get_data(1)
+df_totals = get_data(0) # Index 0 = First Tab
+df_logs = get_data(1)   # Index 1 = Second Tab
 
 if df_totals.empty:
-    st.warning("Waiting for data... (If this persists, check secrets.toml)")
+    st.warning("Waiting for data... check Secrets and Sheet Sharing.")
     st.stop()
 
 # --- ANIMATION LOGIC ---
 if not st.session_state.has_animated and not df_logs.empty:
-    
     race_df = df_totals.copy()
     race_df['Pushups'] = 0
-    
     race_placeholder.markdown(render_track_html(race_df), unsafe_allow_html=True)
     time.sleep(0.5)
     
     df_logs['Amount'] = pd.to_numeric(df_logs['Amount'], errors='coerce').fillna(0)
     
-    total_steps = len(df_logs)
-    step_size = max(1, int(total_steps / 25))
-    
-    for i in range(0, total_steps, step_size):
+    # Replay Loop
+    for i in range(0, len(df_logs), max(1, int(len(df_logs)/25))):
         current_slice = df_logs.iloc[:i+1]
         current_totals = current_slice.groupby('Name')['Amount'].sum().reset_index()
         current_totals.columns = ['Name', 'Pushups']
-        
         frame_df = pd.merge(race_df[['Name']], current_totals, on='Name', how='left').fillna(0)
-        
         race_placeholder.markdown(render_track_html(frame_df), unsafe_allow_html=True)
         time.sleep(0.03)
 
@@ -243,13 +190,9 @@ st.subheader("Log Your Reps")
 
 with st.form("log_form", clear_on_submit=True):
     col_a, col_b = st.columns(2)
+    names_list = df_totals['Name'].tolist() if 'Name' in df_totals.columns else ["Kevin", "Sämi", "Eric", "Elia"]
+    
     with col_a:
-        # Check if Names column exists, if not use default list to prevent crash
-        if 'Name' in df_totals.columns:
-             names_list = df_totals['Name'].tolist()
-        else:
-             names_list = ["Kevin", "Sämi", "Eric", "Elia"]
-             
         who = st.selectbox("Who are you?", names_list)
     with col_b:
         amount = st.number_input("Reps done:", min_value=1, value=20, step=1)
@@ -264,4 +207,4 @@ with st.form("log_form", clear_on_submit=True):
                 time.sleep(1)
                 st.rerun()
 
-st.caption("Data is live-synced with Google Sheets (Tab 1 & Tab 2).")
+st.caption("Data is live-synced with Google Sheets via gspread.")
