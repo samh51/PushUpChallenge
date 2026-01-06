@@ -269,9 +269,13 @@ def render_track_html(current_df, display_date=None):
     # Stadion Start
     track_html = '<div class="racetrack">'
     
-    # Meilensteine
-    for m in range(1000, GOAL, 1000):
+    # Meilensteine (1k bis 10k)
+    # Range läuft jetzt bis GOAL + 1, damit 10000 inkludiert ist
+    for m in range(1000, GOAL + 1, 1000):
         pct = (m / GOAL) * 100
+        # Begrenzung auf 100% falls Rundungsfehler auftreten
+        if pct > 100: pct = 100
+        
         track_html += f"""
 <div class="milestone-line" style="left: {pct}%;">
 <span class="milestone-text">{int(m/1000)}k</span>
@@ -329,15 +333,11 @@ if df_totals.empty:
 # --- ANIMATION LOGIC ---
 if not st.session_state.has_animated and not df_logs.empty:
     
-    # Skip-Button anzeigen
     with skip_btn_placeholder:
-        # Wenn der Button geklickt wird, lädt Streamlit neu.
-        # Wir müssen also sofort den Status setzen, damit beim Neuladen die Animation übersprungen wird.
         if st.button("⏩ Animation überspringen (Sofort zum Ergebnis)"):
             st.session_state.has_animated = True
             st.rerun()
 
-    # Initialisierung
     all_names = ["Kevin", "Sämi", "Eric", "Elia"]
     race_scores = {name: 0 for name in all_names}
     
@@ -353,7 +353,6 @@ if not st.session_state.has_animated and not df_logs.empty:
         df_logs['Amount'] = pd.to_numeric(df_logs['Amount'], errors='coerce').fillna(0)
         
         for index, row in df_logs.iterrows():
-            # Checken, ob wir animieren sollen (falls durch Klick unterbrochen wird)
             if st.session_state.has_animated:
                 break
                 
@@ -373,99 +372,13 @@ if not st.session_state.has_animated and not df_logs.empty:
 
     st.session_state.has_animated = True
     
-# Button entfernen, sobald die Animation fertig (oder übersprungen) ist
 skip_btn_placeholder.empty()
 
 # --- FINAL STATE ---
 today_str = datetime.now().strftime('%d.%m.%Y')
 race_placeholder.markdown(render_track_html(df_totals, today_str), unsafe_allow_html=True)
 
-# 2. STATISTIKEN & LEADERBOARD
-df_sorted = df_totals.sort_values('Pushups', ascending=False)
-leader = df_sorted.iloc[0]
-remaining = GOAL - leader['Pushups']
-
-# --- VORBEREITUNG PROGNOSE DATEN ---
-start_date = datetime.now()
-days_passed = 1
-
-if not df_logs.empty and 'Timestamp' in df_logs.columns:
-    df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
-    start_date = df_logs['Timestamp'].min()
-    days_passed = (datetime.now() - start_date).days
-    days_passed = max(1, days_passed)
-
-col1, col2 = st.columns(2)
-
-# LINKE KARTE: Leaderboard
-with col1:
-    leaderboard_html = '<div class="metric-card">'
-    leaderboard_html += '<h3 style="margin:0; font-size:16px; color:#666; margin-bottom:15px;">🏆 Leaderboard & Prognose</h3>'
-    
-    rank = 1
-    for index, row in df_sorted.iterrows():
-        name = row['Name']
-        score = int(row['Pushups'])
-        
-        forecast_str = "..."
-        if score > 0:
-            daily_rate = score / days_passed
-            remaining_for_player = GOAL - score
-            if remaining_for_player <= 0:
-                forecast_str = "🏁 IM ZIEL!"
-            elif daily_rate > 0:
-                days_to_go = remaining_for_player / daily_rate
-                finish_date = datetime.now() + timedelta(days=days_to_go)
-                forecast_str = f"🏁 Ziel: {finish_date.strftime('%d.%m.%y')}"
-            else:
-                forecast_str = "⏸️ Stillstand"
-        else:
-            forecast_str = "😴 Noch nicht gestartet"
-
-        # HTML OHNE Einrückung am Anfang der Zeile
-        leaderboard_html += f"""
-<div class="leader-row">
-<div style="display:flex; align-items:center;">
-<span class="rank-badge">{rank}</span>
-<div class="player-info">
-<span class="player-name">{name}</span>
-<span class="forecast-date">{forecast_str}</span>
-</div>
-</div>
-<span class="score-display">{score}</span>
-</div>
-"""
-        rank += 1
-        
-    leaderboard_html += '</div>'
-    st.markdown(leaderboard_html, unsafe_allow_html=True)
-
-# RECHTE KARTE: Renn-Statistik
-with col2:
-    # HTML OHNE Einrückung
-    st.markdown(f"""
-<div class="metric-card" style="text-align:center;">
-<h3 style="margin:0; font-size:16px; color:#666;">📊 Renn-Status</h3>
-<div style="margin-top:20px;">
-<p style="margin:0; color:#888; font-size:12px;">Aktueller Leader</p>
-<h2 style="margin:5px 0; font-size:24px; color:#3e4a38;">{leader['Name']}</h2>
-</div>
-<div style="margin-top:20px;">
-<p style="margin:0; color:#888; font-size:12px;">Noch offen bis zum Sieg</p>
-<h2 style="margin:5px 0; font-size:32px; color:#d32f2f;">{int(remaining) if remaining > 0 else 0}</h2>
-<p style="margin:0; color:#888; font-size:10px;">Pushups</p>
-</div>
-<div style="margin-top:20px; border-top:1px solid #eee; padding-top:10px;">
-<p style="margin:0; font-size:11px; color:#666;">Rennen läuft seit:</p>
-<p style="margin:0; font-weight:bold;">{days_passed} Tagen</p>
-</div>
-</div>
-""", unsafe_allow_html=True)
-
-# 3. EINGABE FORMULAR
-st.divider()
-st.subheader("Log Your Reps")
-
+# --- 3. EINGABE FORMULAR (NEUE POSITION: DIREKT UNTER STADION) ---
 with st.form("log_form", clear_on_submit=True):
     col_a, col_b = st.columns(2)
     names_list = ["Kevin", "Sämi", "Eric", "Elia"]
@@ -484,6 +397,78 @@ with st.form("log_form", clear_on_submit=True):
                 st.success(f"{amount} Pushups für {who} eingetragen!")
                 time.sleep(1)
                 st.rerun()
+
+# --- DATEN VORBEREITUNG FÜR STATS ---
+df_sorted = df_totals.sort_values('Pushups', ascending=False)
+leader = df_sorted.iloc[0]
+remaining = GOAL - leader['Pushups']
+
+# Gesamtsumme aller Teilnehmer
+total_team_reps = int(df_totals['Pushups'].sum())
+
+start_date = datetime.now()
+days_passed = 1
+
+if not df_logs.empty and 'Timestamp' in df_logs.columns:
+    df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
+    start_date = df_logs['Timestamp'].min()
+    days_passed = (datetime.now() - start_date).days
+    days_passed = max(1, days_passed)
+
+col1, col2 = st.columns(2)
+
+# LINKE KARTE: Leaderboard mit Ø Stats
+with col1:
+    leaderboard_html = '<div class="metric-card">'
+    leaderboard_html += '<h3 style="margin:0; font-size:16px; color:#666; margin-bottom:15px;">🏆 Leaderboard</h3>'
+    
+    rank = 1
+    for index, row in df_sorted.iterrows():
+        name = row['Name']
+        score = int(row['Pushups'])
+        
+        # Durchschnitt berechnen
+        daily_avg = 0
+        if score > 0:
+            daily_avg = score / days_passed
+
+        leaderboard_html += f"""
+<div class="leader-row">
+<div style="display:flex; align-items:center;">
+<span class="rank-badge">{rank}</span>
+<div class="player-info">
+<span class="player-name">{name}</span>
+<span class="forecast-date">Ø {daily_avg:.1f} / Tag</span>
+</div>
+</div>
+<span class="score-display">{score}</span>
+</div>
+"""
+        rank += 1
+        
+    leaderboard_html += '</div>'
+    st.markdown(leaderboard_html, unsafe_allow_html=True)
+
+# RECHTE KARTE: Renn-Status mit Total Stats
+with col2:
+    st.markdown(f"""
+<div class="metric-card" style="text-align:center;">
+<h3 style="margin:0; font-size:16px; color:#666;">📊 Renn-Status</h3>
+<div style="margin-top:20px;">
+<p style="margin:0; color:#888; font-size:12px;">Aktueller Leader</p>
+<h2 style="margin:5px 0; font-size:24px; color:#3e4a38;">{leader['Name']}</h2>
+</div>
+<div style="margin-top:15px;">
+<p style="margin:0; color:#888; font-size:12px;">Team Gesamt</p>
+<h2 style="margin:5px 0; font-size:24px; color:#1e88e5;">{total_team_reps}</h2>
+<p style="margin:0; color:#888; font-size:10px;">Pushups Total</p>
+</div>
+<div style="margin-top:15px; border-top:1px solid #eee; padding-top:10px;">
+<p style="margin:0; font-size:11px; color:#666;">Noch offen (Leader): <b>{int(remaining) if remaining > 0 else 0}</b></p>
+<p style="margin:0; font-size:11px; color:#666;">Laufzeit: <b>{days_passed} Tage</b></p>
+</div>
+</div>
+""", unsafe_allow_html=True)
 
 # 4. ADMIN / BEARBEITEN BEREICH
 st.divider()
