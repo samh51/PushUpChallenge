@@ -6,7 +6,9 @@ from streamlit_gsheets import GSheetsConnection
 
 # --- CONFIGURATION ---
 GOAL = 10000
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM/edit?gid=0#gid=0"
+
+# 🔴 FIX: Clean URL (Removed '?gid=0#gid=0' from the end)
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM/edit"
 
 # 🖼️ IMAGE CONFIGURATION
 IMG_FIRST  = "https://media.istockphoto.com/id/1007282190/vector/horse-power-flame.jpg?s=612x612&w=0&k=20&c=uHnnvMTzaatfPblbFHdfhuJT7qLwsARF90oqH0dMCjA="
@@ -16,7 +18,7 @@ IMG_LAST   = "https://i.etsystatic.com/28959621/r/il/e2cf08/5908874106/il_570xN.
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Pushup Derby", page_icon="🐎", layout="centered")
 
-# Custom CSS (Sizes doubled)
+# Custom CSS
 st.markdown("""
     <style>
     .racetrack {
@@ -30,20 +32,20 @@ st.markdown("""
         border-bottom: 3px dashed #6b7c62;
         padding: 20px 0;
         position: relative;
-        height: 140px; /* Doubled height */
+        height: 140px;
     }
     .horse-container {
         position: absolute;
         top: 10px;
-        transition: left 0.5s ease-in-out; /* Smoother transition for animation */
+        transition: left 0.5s ease-in-out;
         z-index: 10;
         text-align: center;
-        width: 120px; /* Doubled width */
-        transform: translateX(-50%); /* Center the horse on the progress point */
+        width: 120px;
+        transform: translateX(-50%);
     }
     .race-img {
-        width: 100px; /* Doubled size */
-        height: 100px; /* Doubled size */
+        width: 100px;
+        height: 100px;
         object-fit: contain;
         filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.5));
         background-color: transparent;
@@ -51,7 +53,7 @@ st.markdown("""
     }
     .name-tag {
         display: block;
-        font-size: 16px; /* Larger text */
+        font-size: 16px;
         font-weight: bold;
         color: white;
         background: rgba(0,0,0,0.7);
@@ -82,27 +84,28 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def get_data(worksheet_name):
     try:
-        # We specify worksheet to grab either 'Sheet1' (Totals) or 'Logs'
         # ttl=0 ensures we don't cache data
         df = conn.read(spreadsheet=SHEET_URL, worksheet=worksheet_name, ttl=0)
         return df
     except Exception as e:
-        # ⚠️ THIS WILL SHOW THE REAL ERROR ON YOUR APP SCREEN
+        # This will print the specific error to the screen if it fails again
         st.error(f"❌ Error loading tab '{worksheet_name}': {e}")
         return pd.DataFrame()
 
 def update_data(name, new_reps):
     try:
-        # 1. Update Totals (Sheet1) - For quick access
-        df_totals = get_data("Sheet1") # Assuming default tab is Sheet1
+        # 1. Update Totals (Sheet1)
+        df_totals = get_data("Sheet1")
         if df_totals.empty: return False
         
         user_idx = df_totals[df_totals['Name'] == name].index[0]
-        df_totals.at[user_idx, 'Pushups'] = pd.to_numeric(df_totals.at[user_idx, 'Pushups']) + new_reps
+        # Ensure we are adding numbers, not strings
+        current_val = pd.to_numeric(df_totals.at[user_idx, 'Pushups'])
+        df_totals.at[user_idx, 'Pushups'] = current_val + new_reps
+        
         conn.update(spreadsheet=SHEET_URL, worksheet="Sheet1", data=df_totals)
 
-        # 2. Update Logs (Logs) - For history/animation
-        # We read existing logs, append new row, and write back
+        # 2. Update Logs
         df_logs = get_data("Logs")
         new_entry = pd.DataFrame([{
             "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -121,23 +124,21 @@ def update_data(name, new_reps):
         st.error(f"Error updating: {e}")
         return False
 
-# --- RENDER FUNCTION (Generates the HTML) ---
+# --- RENDER FUNCTION ---
 def render_track_html(current_df):
     if current_df.empty: return ""
     
-    # Sort to find leader/last place for THIS specific frame
     df_sorted = current_df.sort_values('Pushups', ascending=False)
     leader_name = df_sorted.iloc[0]['Name']
     last_place_name = df_sorted.iloc[-1]['Name']
     
     track_html = '<div class="racetrack">'
     
-    # We iterate through the original list of names to keep lane order consistent
-    # (So horses don't swap lanes, they just move forward/backward)
-    all_names = ["Kevin", "Sämi", "Eric", "Elia"] # HARDCODED ORDER for stability or get from initial df
+    # HARDCODED NAMES to prevent lanes from jumping around
+    # ⚠️ Make sure these match your Google Sheet exactly!
+    all_names = ["Kevin", "Sämi", "Eric", "Elia"] 
     
     for name in all_names:
-        # Find user data in the current dataframe
         user_row = current_df[current_df['Name'] == name]
         
         if not user_row.empty:
@@ -147,7 +148,6 @@ def render_track_html(current_df):
             
         progress = min(90, (raw_score / GOAL) * 100)
         
-        # Icon Logic
         if name == leader_name and raw_score > 0:
             current_icon = IMG_FIRST
         elif name == last_place_name and raw_score > 0:
@@ -170,10 +170,8 @@ def render_track_html(current_df):
 # --- MAIN APP ---
 st.title("🐎 10k Pushup Derby")
 
-# Placeholder for the race track
 race_placeholder = st.empty()
 
-# Initialize Session State for Animation
 if 'has_animated' not in st.session_state:
     st.session_state.has_animated = False
 
@@ -182,54 +180,39 @@ df_totals = get_data("Sheet1")
 df_logs = get_data("Logs")
 
 if df_totals.empty:
-    st.error("Could not load data. Ensure Sheet1 exists.")
+    st.warning("Waiting for data... check tab names 'Sheet1' and 'Logs'")
     st.stop()
 
 # --- ANIMATION LOGIC ---
-# Only animate if we haven't done it yet this session AND we have logs
 if not st.session_state.has_animated and not df_logs.empty:
     
-    # 1. Setup the "Race" dataframe (everyone starts at 0)
-    # Get unique names from Totals to ensure we have everyone
+    # Setup race start
     race_df = df_totals.copy()
     race_df['Pushups'] = 0
     
-    # 2. Show Starting Line
     race_placeholder.markdown(render_track_html(race_df), unsafe_allow_html=True)
     time.sleep(0.5)
-    
-    # 3. Process logs to create animation steps
-    # We group logs by small chunks or simply iterate if not too many
-    # For speed, let's replay by accumulating log entries
     
     # Clean logs
     df_logs['Amount'] = pd.to_numeric(df_logs['Amount'], errors='coerce').fillna(0)
     
     # Replay Loop
     total_steps = len(df_logs)
-    # If too many logs, skip frames to keep animation under 3 seconds
-    step_size = max(1, int(total_steps / 20)) 
+    step_size = max(1, int(total_steps / 25)) # Adjust speed
     
     for i in range(0, total_steps, step_size):
-        # Get the slice of logs up to this point
         current_slice = df_logs.iloc[:i+1]
-        
-        # Calculate totals for this slice
         current_totals = current_slice.groupby('Name')['Amount'].sum().reset_index()
         current_totals.columns = ['Name', 'Pushups']
         
-        # Merge with base frame to ensure all players exist (even if 0 pushups)
         frame_df = pd.merge(race_df[['Name']], current_totals, on='Name', how='left').fillna(0)
         
-        # Update UI
         race_placeholder.markdown(render_track_html(frame_df), unsafe_allow_html=True)
-        time.sleep(0.05) # Speed of animation
+        time.sleep(0.03)
 
-    # Mark animation as done
     st.session_state.has_animated = True
 
-# --- FINAL STATE RENDER ---
-# Ensure the final accurate data is shown after animation (or if no logs exist)
+# --- FINAL STATE ---
 race_placeholder.markdown(render_track_html(df_totals), unsafe_allow_html=True)
 
 # 2. STATS
