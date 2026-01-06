@@ -5,13 +5,13 @@ from streamlit_gsheets import GSheetsConnection
 # --- CONFIGURATION ---
 GOAL = 10000
 
-# 🔴 PASTE YOUR GOOGLE SHEET LINK HERE (between the quotes):
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM/edit?gid=0#gid=0"
+# 🔴 PASTE YOUR GOOGLE SHEET LINK HERE:
+SHEET_URL = "https://docs.google.com/spreadsheets/d/YOUR_LONG_ID_HERE/edit"
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Pushup Derby", page_icon="🐎", layout="centered")
 
-# Custom CSS for the Race Track
+# Custom CSS
 st.markdown("""
     <style>
     .racetrack {
@@ -64,29 +64,19 @@ st.markdown("""
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def get_data():
-    # ttl=0 ensures we don't cache old data
     try:
-        # We explicitly pass the URL here to avoid the "Spreadsheet must be specified" error
         df = conn.read(spreadsheet=SHEET_URL, ttl=0)
-        
-        # Ensure column types are correct
         if not df.empty:
-            # Clean up the data if necessary
             df['Pushups'] = pd.to_numeric(df['Pushups'], errors='coerce').fillna(0)
         return df
     except Exception as e:
-        st.error(f"Error reading sheet. Check that your link is correct! Error: {e}")
+        st.error(f"Error reading sheet: {e}")
         return pd.DataFrame()
 
 def update_data(df, name, new_reps):
     try:
-        # Find the row for the selected user
         user_idx = df[df['Name'] == name].index[0]
-        
-        # Update the local dataframe
         df.at[user_idx, 'Pushups'] += new_reps
-        
-        # Write the ENTIRE updated dataframe back to Google Sheets
         conn.update(spreadsheet=SHEET_URL, data=df)
         return df
     except Exception as e:
@@ -96,34 +86,33 @@ def update_data(df, name, new_reps):
 # --- MAIN APP ---
 st.title("🐎 10k Pushup Derby")
 
-# Load Data
 df = get_data()
 
 if df.empty:
-    st.warning("Could not read data.")
-    st.info("1. Check if SHEET_URL is correct in the code.\n2. Ensure your sheet has headers 'Name' and 'Pushups'.")
+    st.warning("Could not read data. Check your SHEET_URL.")
     st.stop()
 
 # 1. THE RACE TRACK VISUALIZATION
 st.subheader("Current Standings")
 
-# Sort by score for the leaderboard logic
 df_sorted = df.sort_values('Pushups', ascending=False)
 
+# Start the container
 track_html = '<div class="racetrack">'
 
 for index, row in df.iterrows(): 
     raw_score = row['Pushups']
     progress = min(90, (raw_score / GOAL) * 100)
     
+    # ⚠️ IMPORTANT: The lines below must NOT be indented in the Python string
     track_html += f"""
-    <div class="lane">
-        <div class="finish-line"></div>
-        <div class="horse-container" style="left: {progress}%;">
-            🐎 <span class="name-tag">{row['Name']} ({int(raw_score)})</span>
-        </div>
+<div class="lane">
+    <div class="finish-line"></div>
+    <div class="horse-container" style="left: {progress}%;">
+        🐎 <span class="name-tag">{row['Name']} ({int(raw_score)})</span>
     </div>
-    """
+</div>
+"""
 
 track_html += '</div>'
 st.markdown(track_html, unsafe_allow_html=True)
@@ -160,22 +149,17 @@ st.subheader("Log Your Reps")
 
 with st.form("log_form", clear_on_submit=True):
     col_a, col_b = st.columns(2)
-    
-    # Dropdown populated dynamically from the Google Sheet names
     with col_a:
         who = st.selectbox("Who are you?", df['Name'].tolist())
-    
-    # Number input
     with col_b:
         amount = st.number_input("Reps done:", min_value=1, value=20, step=1)
     
     submitted = st.form_submit_button("🚀 Update Score", use_container_width=True)
 
     if submitted:
-        with st.spinner("Updating the big board..."):
+        with st.spinner("Updating..."):
             update_data(df, who, amount)
         st.success(f"Added {amount} pushups for {who}!")
         st.rerun()
 
-# Footer
 st.caption("Data is live-synced with Google Sheets.")
