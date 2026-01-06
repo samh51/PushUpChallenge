@@ -17,54 +17,132 @@ IMG_LAST   = "https://i.etsystatic.com/28959621/r/il/e2cf08/5908874106/il_570xN.
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Pushup Derby", page_icon="🐎", layout="centered")
 
-# Custom CSS
+# --- PROFI DESIGN CSS ---
 st.markdown("""
     <style>
+    /* Das Haupt-Stadion */
     .racetrack { 
-        background-color: #3e4a38; 
-        padding: 10px; 
-        border-radius: 10px; 
+        /* Schöner Rasen-Verlauf statt flacher Farbe */
+        background: linear-gradient(180deg, #2d3b26 0%, #3e4a38 100%);
+        border: 8px solid #5d4037; /* Holz/Erde Rahmen */
+        border-radius: 15px; 
         margin-bottom: 20px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 10px 20px rgba(0,0,0,0.3); 
         position: relative; 
-        overflow: hidden; 
+        overflow: hidden;
+        /* WICHTIG: Padding links/rechts verhindert, dass Pferde abgeschnitten werden */
+        padding: 20px 60px 20px 60px; 
     }
-    .lane { border-bottom: 3px dashed #6b7c62; padding: 20px 0; position: relative; height: 140px; z-index: 5; }
-    .horse-container { position: absolute; top: 10px; transition: left 0.5s ease-in-out; z-index: 20; text-align: center; width: 120px; transform: translateX(-50%); }
-    .race-img { width: 100px; height: 100px; object-fit: contain; filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.5)); background-color: transparent; border-radius: 10px; }
-    .name-tag { display: block; font-size: 16px; font-weight: bold; color: white; background: rgba(0,0,0,0.7); padding: 4px 10px; border-radius: 6px; margin-top: -5px; white-space: nowrap; }
-    .finish-line { position: absolute; right: 0; top: 0; bottom: 0; width: 15px; background-image: repeating-linear-gradient(45deg, #000, #000 10px, #fff 10px, #fff 20px); opacity: 0.6; z-index: 15; }
-    .metric-card { background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 10px; }
-    
-    /* Meilensteine (1000er Linien) */
+
+    /* Die einzelnen Bahnen */
+    .lane { 
+        border-bottom: 2px dashed rgba(255,255,255,0.15); 
+        padding: 15px 0; 
+        position: relative; 
+        height: 120px; 
+        z-index: 5; 
+    }
+
+    /* Der Container, der sich bewegt */
+    .horse-container { 
+        position: absolute; 
+        top: 15px; 
+        transition: left 0.5s cubic-bezier(0.25, 1, 0.5, 1); /* Weichere Animation */
+        z-index: 20; 
+        text-align: center; 
+        width: 100px; 
+        transform: translateX(-50%); /* Zentriert das Pferd auf dem Punkt */
+    }
+
+    /* Das Bild (Avatar Look) */
+    .race-img { 
+        width: 70px; 
+        height: 70px; 
+        object-fit: cover; /* Schneidet Bilder sauber zu */
+        border-radius: 50%; /* Macht das Bild rund */
+        border: 3px solid #fff; /* Weisser Rand */
+        box-shadow: 0 4px 8px rgba(0,0,0,0.5); /* Schatten für 3D Effekt */
+        background-color: #fff;
+    }
+
+    /* Das Namensschild */
+    .name-tag { 
+        display: inline-block;
+        font-size: 12px; 
+        font-weight: bold; 
+        color: #333; 
+        background: rgba(255,255,255,0.9); 
+        padding: 2px 8px; 
+        border-radius: 12px; /* Pillen-Form */
+        margin-top: 5px; 
+        white-space: nowrap;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    /* Startlinie */
+    .start-line {
+        position: absolute;
+        left: 0; top: 0; bottom: 0; width: 4px;
+        background-color: rgba(255,255,255,0.8);
+        z-index: 15;
+        box-shadow: 0 0 5px rgba(255,255,255,0.5);
+    }
+
+    /* Ziellinie (Schachbrett) */
+    .finish-line { 
+        position: absolute; 
+        right: 0; top: 0; bottom: 0; width: 20px; 
+        background-image: 
+            linear-gradient(45deg, #000 25%, transparent 25%), 
+            linear-gradient(-45deg, #000 25%, transparent 25%), 
+            linear-gradient(45deg, transparent 75%, #000 75%), 
+            linear-gradient(-45deg, transparent 75%, #000 75%);
+        background-size: 10px 10px;
+        background-color: #fff;
+        opacity: 0.9; 
+        z-index: 15; 
+        box-shadow: -2px 0 5px rgba(0,0,0,0.3);
+    }
+
+    /* Meilensteine (Hintergrund) */
     .milestone-line {
         position: absolute;
-        top: 0;
-        bottom: 0;
-        border-left: 2px dashed rgba(255, 255, 255, 0.2);
+        top: 0; bottom: 0;
+        border-left: 1px solid rgba(255, 255, 255, 0.1); /* Sehr dezent */
         z-index: 1; 
     }
     .milestone-text {
         position: absolute;
-        bottom: 2px;
-        font-size: 10px;
-        color: rgba(255, 255, 255, 0.4);
+        bottom: 5px;
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.3);
         transform: translateX(-50%); 
-        white-space: nowrap; /* Verhindert Umbruch */
+        font-family: sans-serif;
     }
 
+    /* Datumsanzeige Oben Rechts */
     .date-display {
         position: absolute;
-        top: 10px;
-        right: 15px;
-        background-color: rgba(255, 255, 255, 0.8);
-        color: #333;
-        padding: 5px 10px;
-        border-radius: 5px;
-        font-weight: bold;
+        top: 15px;
+        right: 20px;
+        background-color: rgba(0, 0, 0, 0.6);
+        color: #fff;
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 12px;
         font-family: monospace;
         z-index: 100;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        border: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .metric-card { 
+        background: linear-gradient(135deg, #f0f2f6 0%, #ffffff 100%);
+        padding: 20px; 
+        border-radius: 15px; 
+        text-align: center; 
+        margin-bottom: 10px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        border: 1px solid #e0e0e0;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -155,9 +233,10 @@ def render_track_html(current_df, display_date=None):
     leader_name = df_sorted.iloc[0]['Name']
     last_place_name = df_sorted.iloc[-1]['Name']
     
+    # Stadion Start
     track_html = '<div class="racetrack">'
     
-    # MEILENSTEINE (Ohne Einrückung!)
+    # Meilensteine
     for m in range(1000, GOAL, 1000):
         pct = (m / GOAL) * 100
         track_html += f"""
@@ -165,7 +244,7 @@ def render_track_html(current_df, display_date=None):
     <span class="milestone-text">{int(m/1000)}k</span>
 </div>
 """
-
+    # Datum
     if display_date:
         track_html += f'<div class="date-display">📅 {display_date}</div>'
     
@@ -174,7 +253,7 @@ def render_track_html(current_df, display_date=None):
     for name in all_names:
         user_row = current_df[current_df['Name'] == name]
         raw_score = user_row.iloc[0]['Pushups'] if not user_row.empty else 0
-        progress = min(90, (raw_score / GOAL) * 100)
+        progress = min(100, (raw_score / GOAL) * 100) # Capped at 100%
         
         if name == leader_name and raw_score > 0:
             current_icon = IMG_FIRST
@@ -185,6 +264,7 @@ def render_track_html(current_df, display_date=None):
             
         track_html += f"""
 <div class="lane">
+    <div class="start-line"></div>
     <div class="finish-line"></div>
     <div class="horse-container" style="left: {progress}%;">
         <img src="{current_icon}" class="race-img">
@@ -258,15 +338,17 @@ col1, col2 = st.columns(2)
 with col1:
     st.markdown(f"""
     <div class="metric-card">
-        <h3>🏆 Leader</h3>
-        <h2>{leader['Name']}</h2>
+        <h3 style="margin:0; font-size:16px; color:#666;">🏆 Leader</h3>
+        <h2 style="margin:0; font-size:28px;">{leader['Name']}</h2>
+        <p style="margin:0; color:#888;">{int(leader['Pushups'])} reps</p>
     </div>
     """, unsafe_allow_html=True)
 with col2:
     st.markdown(f"""
     <div class="metric-card">
-        <h3>🏁 To Win</h3>
-        <h2>{int(remaining) if remaining > 0 else 0}</h2>
+        <h3 style="margin:0; font-size:16px; color:#666;">🏁 To Win</h3>
+        <h2 style="margin:0; font-size:28px;">{int(remaining) if remaining > 0 else 0}</h2>
+        <p style="margin:0; color:#888;">reps needed</p>
     </div>
     """, unsafe_allow_html=True)
 
