@@ -119,6 +119,8 @@ def save_full_edits(edited_logs_df):
         # 2. Totals neu berechnen
         # Gruppieren nach Name und Summe bilden
         edited_logs_df['Amount'] = pd.to_numeric(edited_logs_df['Amount'], errors='coerce').fillna(0)
+        
+        # Hier entsteht ein DataFrame mit Spalten ['Name', 'Amount']
         new_totals = edited_logs_df.groupby('Name')['Amount'].sum().reset_index()
         
         # Sicherstellen, dass alle Namen existieren (auch wenn Summe 0 ist)
@@ -129,7 +131,8 @@ def save_full_edits(edited_logs_df):
         for index, row in new_totals.iterrows():
             idx = final_totals.index[final_totals['Name'] == row['Name']].tolist()
             if idx:
-                final_totals.at[idx[0], 'Pushups'] = row['Pushups']
+                # 🔴 KORREKTUR: Hier stand vorher row['Pushups'], es muss aber row['Amount'] sein
+                final_totals.at[idx[0], 'Pushups'] = row['Amount']
         
         # 3. Totals überschreiben (Tab 0)
         ws_totals = sheet.get_worksheet(0)
