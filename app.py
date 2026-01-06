@@ -34,18 +34,27 @@ st.markdown("""
 }
 
 .lane { 
-    border-bottom: 2px dashed rgba(255,255,255,0.1); 
+    /* border-bottom entfernt, machen wir jetzt separat */
     padding: 15px 0; 
     position: relative; 
     height: 120px; 
-    /* WICHTIG: Kein z-index hier, damit die Grid-Linien (z-index 1) DRÜBER liegen können */
+}
+
+/* Die gestrichelte Linie zwischen den Bahnen (Horizontale Begrenzung) */
+.lane-divider {
+    position: absolute;
+    bottom: 0;
+    left: 8.333%;  /* Startet erst bei der Startlinie */
+    right: 8.333%; /* Endet bei der Ziellinie */
+    border-bottom: 2px dashed rgba(255,255,255,0.15);
+    z-index: 1;
 }
 
 .horse-container { 
     position: absolute; 
     top: 15px; 
     transition: left 0.5s cubic-bezier(0.25, 1, 0.5, 1); 
-    z-index: 20; /* Pferde sind ganz oben (über den Linien) */
+    z-index: 20; 
     text-align: center; 
     width: 100px; 
     transform: translateX(-50%); 
@@ -75,35 +84,35 @@ st.markdown("""
 }
 
 /* --- GRID SYSTEM --- */
-/* Z-Index Logik: Lane (0) < Grid (1-3) < Horse (20) */
+/* Wir nutzen top/bottom Werte > 0, damit die Linien nicht den Rand berühren */
 
 .grid-line {
     position: absolute;
-    top: 0; bottom: 0;
+    top: 20px; bottom: 35px; /* BUFFER OBEN UND UNTEN */
     border-left: 1px dashed rgba(255, 255, 255, 0.25); 
-    z-index: 1; 
+    z-index: 2; 
     pointer-events: none;
 }
 
 .start-line-marker {
     position: absolute;
-    top: 0; bottom: 0;
+    top: 20px; bottom: 35px; /* BUFFER OBEN UND UNTEN */
     border-left: 2px solid rgba(255, 255, 255, 0.6); 
-    z-index: 2; 
+    z-index: 3; 
     pointer-events: none;
 }
 
 .major-line {
     position: absolute;
-    top: 0; bottom: 0;
+    top: 20px; bottom: 35px; /* BUFFER OBEN UND UNTEN */
     border-left: 3px solid rgba(255, 255, 255, 0.5); 
-    z-index: 2; 
+    z-index: 3; 
     pointer-events: none;
 }
 
 .finish-line-marker {
     position: absolute;
-    top: 0; bottom: 0;
+    top: 20px; bottom: 35px; /* BUFFER OBEN UND UNTEN */
     width: 15px;
     background-image: 
     linear-gradient(45deg, #000 25%, transparent 25%), 
@@ -112,14 +121,14 @@ st.markdown("""
     linear-gradient(-45deg, transparent 75%, #000 75%);
     background-size: 10px 10px;
     background-color: rgba(255,255,255,0.9);
-    z-index: 3;
+    z-index: 4;
     transform: translateX(-50%);
     pointer-events: none;
 }
 
 .grid-text {
     position: absolute;
-    bottom: 5px;
+    bottom: -20px; /* Text unterhalb der Linie positionieren */
     font-size: 10px;
     color: rgba(255, 255, 255, 0.6);
     transform: translateX(-50%); 
@@ -131,7 +140,7 @@ st.markdown("""
 .grid-text-major {
     font-size: 12px;
     color: rgba(255, 255, 255, 1.0);
-    bottom: 5px;
+    bottom: -22px;
 }
 
 .date-display {
@@ -357,6 +366,7 @@ def render_track_html(current_df, display_date=None):
             
         track_html += f"""
 <div class="lane">
+<div class="lane-divider"></div>
 <div class="horse-container" style="left: {final_pos_percent}%;">
 <img src="{current_icon}" class="race-img">
 <span class="name-tag">{name} ({int(raw_score)})</span>
