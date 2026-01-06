@@ -344,14 +344,13 @@ def save_full_edits(edited_logs_df):
 def render_track_html(current_df, display_date=None):
     if current_df.empty: return ""
     
-    # RENNBAHN ZEIGT IMMER TOTAL (ScoreTotal)
+    # RENNBAHN ZEIGT IMMER TOTAL
     df_sorted = current_df.sort_values('ScoreTotal', ascending=False)
     leader_name = df_sorted.iloc[0]['Name']
     last_place_name = df_sorted.iloc[-1]['Name']
     
     track_html = '<div class="racetrack">'
     
-    # --- GRID ---
     total_segments = 12
     segment_width = 100.0 / total_segments
     
@@ -428,9 +427,6 @@ def render_track_html(current_df, display_date=None):
 # --- MAIN APP ---
 st.title("🐎 Fitness Derby")
 
-# --- FILTER UI (NUR FÜR LEADERBOARD) ---
-selected_filter = st.selectbox("Leaderboard filtern:", ["Gesamt (Alle Punkte)", "Pushups", "Pullups", "Dips"])
-
 # Platzhalter
 share_placeholder = st.empty()
 race_placeholder = st.empty()
@@ -447,10 +443,14 @@ if df_totals.empty:
     st.warning("Warte auf Daten (oder DB Verbindung prüfen)...")
     st.stop()
 
-# --- DATEN VORBEREITUNG (FILTER & BEREINIGUNG) ---
+# --- DATEN VORBEREITUNG (REINIGUNG + GLOBAL CONVERSION) ---
 df_display = df_totals.copy()
 
-# 1. Daten bereinigen (alles zu Zahlen machen)
+# 🔴 FIX: Sofortige Konvertierung der Timestamp-Spalte für ALLE Berechnungen
+if not df_logs.empty and 'Timestamp' in df_logs.columns:
+    df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
+
+# Daten für Display bereinigen (Strings zu Zahlen)
 for ex in EXERCISES:
     if ex not in df_display.columns:
         df_display[ex] = 0
@@ -460,17 +460,10 @@ for ex in EXERCISES:
 if 'Total' in df_display.columns:
     df_display['Total'] = pd.to_numeric(df_display['Total'], errors='coerce').fillna(0)
 else:
-    # Fallback Berechnung
     df_display['Total'] = df_display[EXERCISES].sum(axis=1)
 
-# 2. ScoreTotal IMMER berechnen (für Rennbahn)
+# ScoreTotal wird ÜBERALL genutzt (Rennbahn, Stats)
 df_display['ScoreTotal'] = df_display['Total']
-
-# 3. ScoreFiltered berechnen (für Leaderboard)
-if selected_filter == "Gesamt (Alle Punkte)":
-    df_display['ScoreFiltered'] = df_display['Total']
-else:
-    df_display['ScoreFiltered'] = df_display[selected_filter]
 
 # --- SUCCESS & SHARE LOGIC ---
 if 'last_log' in st.session_state:
@@ -498,7 +491,7 @@ if 'last_log' in st.session_state:
     
     del st.session_state.last_log
 
-# --- ANIMATION LOGIC (BASIERT JETZT AUF TOTAL) ---
+# --- ANIMATION LOGIC (BASIERT AUF TOTAL) ---
 if not st.session_state.has_animated and not df_logs.empty:
     
     with skip_btn_placeholder:
@@ -513,9 +506,8 @@ if not st.session_state.has_animated and not df_logs.empty:
     race_placeholder.markdown(render_track_html(initial_df, "Start"), unsafe_allow_html=True)
     time.sleep(0.5)
     
-    if 'Timestamp' in df_logs.columns:
-        df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
-        df_logs = df_logs.sort_values('Timestamp')
+    # Hier sicherstellen, dass Timestamp Datum ist (wurde oben schon gemacht, aber doppelt hält besser)
+    df_logs = df_logs.sort_values('Timestamp')
     
     if 'Amount' in df_logs.columns:
         df_logs['Amount'] = pd.to_numeric(df_logs['Amount'], errors='coerce').fillna(0)
@@ -527,14 +519,13 @@ if not st.session_state.has_animated and not df_logs.empty:
             name = row['Name']
             amount = row['Amount']
             # Animation zeigt IMMER Gesamtfortschritt -> jeder Punkt zählt
-            points_to_add = amount
             
             current_ts = row['Timestamp']
             date_str = current_ts.strftime('%d.%m.%Y') if pd.notnull(current_ts) else ""
             
-            if points_to_add > 0:
+            if amount > 0:
                 if name in race_scores:
-                    race_scores[name] += points_to_add
+                    race_scores[name] += amount
                 
                 frame_data = [{'Name': n, 'ScoreTotal': s} for n, s in race_scores.items()]
                 frame_df = pd.DataFrame(frame_data)
@@ -576,20 +567,31 @@ with st.form("log_form", clear_on_submit=True):
                     st.session_state.last_log = {'name': who, 'msg': msg}
                     st.rerun()
 
-# --- STATS CALC (IMMER GLOBAL) ---
-# Für die Statistik rechts nehmen wir IMMER den Total Score
+# --- FILTER UI (NUR FÜR LEADERBOARD) - JETZT HIER UNTEN ---
+st.divider()
+selected_filter = st.selectbox("Leaderboard filtern:", ["Gesamt (Alle Punkte)", "Pushups", "Pullups", "Dips"])
+
+# --- STATS CALC ---
+# ScoreFiltered berechnen basierend auf Auswahl
+if selected_filter == "Gesamt (Alle Punkte)":
+    df_display['ScoreFiltered'] = df_display['Total']
+else:
+    df_display['ScoreFiltered'] = df_display[selected_filter]
+
+df_leaderboard_sorted = df_display.sort_values('ScoreFiltered', ascending=False)
+
+# Globale Stats für rechte Karte
 df_global_sorted = df_display.sort_values('ScoreTotal', ascending=False)
 leader_global = df_global_sorted.iloc[0]
 remaining_global = GOAL - leader_global['ScoreTotal']
 total_team_reps_global = int(df_display['ScoreTotal'].sum())
 
-# Für das Leaderboard links nehmen wir den GEFILTERTEN Score
-df_leaderboard_sorted = df_display.sort_values('ScoreFiltered', ascending=False)
-
 start_date = datetime.now()
 days_passed = 1
 if not df_logs.empty and 'Timestamp' in df_logs.columns:
     start_date = df_logs['Timestamp'].min()
+    # Fehlervermeidung falls NaT
+    if pd.isnull(start_date): start_date = datetime.now()
     days_passed = (datetime.now() - start_date).days
     days_passed = max(1, days_passed)
 
@@ -603,10 +605,8 @@ with col1:
     rank = 1
     for index, row in df_leaderboard_sorted.iterrows():
         name = row['Name']
-        # Hier zeigen wir den Score basierend auf dem Filter an
         score = int(row['ScoreFiltered'])
         
-        # Breakdown String (nur bei Gesamt interessant)
         detail_str = ""
         if selected_filter == "Gesamt (Alle Punkte)":
             parts = []
@@ -615,22 +615,19 @@ with col1:
                 parts.append(f"{ex[:2].upper()}:{val}")
             detail_str = " | ".join(parts)
         
-        # Prognose
         daily_avg = 0
         forecast_str = ""
         if score > 0:
             daily_avg = score / days_passed
-            # Ziel gilt eigentlich fürs Gesamt, aber wir zeigen hier einfach die Rate an
-            remaining_for_player = GOAL - int(row['ScoreTotal']) # Ziel ist immer das Gesamt-Ziel
-            if remaining_for_player <= 0:
-                forecast_str = "✅ Done"
-            elif selected_filter == "Gesamt (Alle Punkte)":
-                days_to_go = remaining_for_player / daily_avg
-                finish_date = datetime.now() + timedelta(days=days_to_go)
-                forecast_str = f"🏁 {finish_date.strftime('%d.%m.%y')}"
-            else:
-                # Bei Unterkategorien macht Ziel-Datum weniger Sinn, wir zeigen nur Ø
-                forecast_str = ""
+            # Zielprognose macht nur bei Gesamt Sinn
+            if selected_filter == "Gesamt (Alle Punkte)":
+                remaining_for_player = GOAL - score
+                if remaining_for_player <= 0:
+                    forecast_str = "✅ Done"
+                else:
+                    days_to_go = remaining_for_player / daily_avg
+                    finish_date = datetime.now() + timedelta(days=days_to_go)
+                    forecast_str = f"🏁 {finish_date.strftime('%d.%m.%y')}"
 
         leaderboard_html += f"""
 <div class="leader-row">
