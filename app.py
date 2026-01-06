@@ -26,16 +26,32 @@ st.markdown("""
         border-radius: 10px; 
         margin-bottom: 20px; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
-        position: relative; /* Für absolute Positionierung des Datums */
+        position: relative; /* Wichtig für absolute Positionierung der Linien */
+        overflow: hidden; /* Damit Linien nicht rausstehen */
     }
-    .lane { border-bottom: 3px dashed #6b7c62; padding: 20px 0; position: relative; height: 140px; }
-    .horse-container { position: absolute; top: 10px; transition: left 0.5s ease-in-out; z-index: 10; text-align: center; width: 120px; transform: translateX(-50%); }
+    .lane { border-bottom: 3px dashed #6b7c62; padding: 20px 0; position: relative; height: 140px; z-index: 5; }
+    .horse-container { position: absolute; top: 10px; transition: left 0.5s ease-in-out; z-index: 20; text-align: center; width: 120px; transform: translateX(-50%); }
     .race-img { width: 100px; height: 100px; object-fit: contain; filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.5)); background-color: transparent; border-radius: 10px; }
     .name-tag { display: block; font-size: 16px; font-weight: bold; color: white; background: rgba(0,0,0,0.7); padding: 4px 10px; border-radius: 6px; margin-top: -5px; white-space: nowrap; }
-    .finish-line { position: absolute; right: 0; top: 0; bottom: 0; width: 15px; background-image: repeating-linear-gradient(45deg, #000, #000 10px, #fff 10px, #fff 20px); opacity: 0.6; z-index: 0; }
+    .finish-line { position: absolute; right: 0; top: 0; bottom: 0; width: 15px; background-image: repeating-linear-gradient(45deg, #000, #000 10px, #fff 10px, #fff 20px); opacity: 0.6; z-index: 15; }
     .metric-card { background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 10px; }
     
-    /* NEU: Datumsanzeige */
+    /* NEU: Meilensteine (1000er Linien) */
+    .milestone-line {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        border-left: 2px dashed rgba(255, 255, 255, 0.2);
+        z-index: 1; /* Hinter den Pferden */
+    }
+    .milestone-text {
+        position: absolute;
+        bottom: 2px;
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.4);
+        transform: translateX(-50%); /* Zentriert den Text auf der Linie */
+    }
+
     .date-display {
         position: absolute;
         top: 10px;
@@ -79,19 +95,15 @@ def get_data(tab_index):
         return pd.DataFrame()
 
 def update_single_entry(name, new_reps):
-    """Fügt einen einzelnen Eintrag hinzu (für das schnelle Loggen)"""
     try:
         client = get_google_sheet_client()
         sheet = client.open_by_key(SHEET_ID)
-        
-        # 1. Totals aktualisieren
         ws_totals = sheet.get_worksheet(0)
         cell = ws_totals.find(name)
         if cell:
             current_val = int(ws_totals.cell(cell.row, 2).value or 0)
             ws_totals.update_cell(cell.row, 2, current_val + new_reps)
         
-        # 2. Log Eintrag hinzufügen
         ws_logs = sheet.get_worksheet(1)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ws_logs.append_row([timestamp, name, new_reps])
@@ -101,40 +113,27 @@ def update_single_entry(name, new_reps):
         return False
 
 def save_full_edits(edited_logs_df):
-    """
-    Überschreibt das Logbuch mit den bearbeiteten Daten 
-    und berechnet die Totals komplett neu.
-    """
     try:
         client = get_google_sheet_client()
         sheet = client.open_by_key(SHEET_ID)
         
-        # 1. Logs überschreiben (Tab 1)
         ws_logs = sheet.get_worksheet(1)
         ws_logs.clear()
-        # Header + Daten schreiben
         data_to_write = [edited_logs_df.columns.values.tolist()] + edited_logs_df.values.tolist()
         ws_logs.update(data_to_write)
         
-        # 2. Totals neu berechnen
-        # Gruppieren nach Name und Summe bilden
         edited_logs_df['Amount'] = pd.to_numeric(edited_logs_df['Amount'], errors='coerce').fillna(0)
-        
-        # Hier entsteht ein DataFrame mit Spalten ['Name', 'Amount']
         new_totals = edited_logs_df.groupby('Name')['Amount'].sum().reset_index()
         
-        # Sicherstellen, dass alle Namen existieren (auch wenn Summe 0 ist)
         all_names = ["Kevin", "Sämi", "Eric", "Elia"]
         final_totals = pd.DataFrame({'Name': all_names, 'Pushups': 0})
         
-        # Merge mit den echten Daten
         for index, row in new_totals.iterrows():
             idx = final_totals.index[final_totals['Name'] == row['Name']].tolist()
             if idx:
-                # 🔴 KORREKTUR: Hier stand vorher row['Pushups'], es muss aber row['Amount'] sein
+                # KORREKTE SPALTE VERWENDEN
                 final_totals.at[idx[0], 'Pushups'] = row['Amount']
         
-        # 3. Totals überschreiben (Tab 0)
         ws_totals = sheet.get_worksheet(0)
         ws_totals.clear()
         totals_data = [final_totals.columns.values.tolist()] + final_totals.values.tolist()
@@ -156,10 +155,17 @@ def render_track_html(current_df, display_date=None):
     leader_name = df_sorted.iloc[0]['Name']
     last_place_name = df_sorted.iloc[-1]['Name']
     
-    # HTML Start
     track_html = '<div class="racetrack">'
     
-    # NEU: Datum einfügen, falls vorhanden
+    # NEU: Meilensteine generieren (1000, 2000, ... 9000)
+    for m in range(1000, GOAL, 1000):
+        pct = (m / GOAL) * 100
+        track_html += f"""
+        <div class="milestone-line" style="left: {pct}%;">
+            <span class="milestone-text">{int(m/1000)}k</span>
+        </div>
+        """
+
     if display_date:
         track_html += f'<div class="date-display">📅 {display_date}</div>'
     
@@ -208,7 +214,6 @@ if df_totals.empty:
 # --- ANIMATION LOGIC ---
 if not st.session_state.has_animated and not df_logs.empty:
     
-    # 1. Startlinie
     all_names = ["Kevin", "Sämi", "Eric", "Elia"]
     race_scores = {name: 0 for name in all_names}
     
@@ -216,7 +221,6 @@ if not st.session_state.has_animated and not df_logs.empty:
     race_placeholder.markdown(render_track_html(initial_df, "Start"), unsafe_allow_html=True)
     time.sleep(0.8)
     
-    # 2. Logs sortieren
     if 'Timestamp' in df_logs.columns:
         df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
         df_logs = df_logs.sort_values('Timestamp')
@@ -224,29 +228,24 @@ if not st.session_state.has_animated and not df_logs.empty:
     if 'Amount' in df_logs.columns:
         df_logs['Amount'] = pd.to_numeric(df_logs['Amount'], errors='coerce').fillna(0)
         
-        # 3. REPLAY LOOP
         for index, row in df_logs.iterrows():
             name = row['Name']
             amount = row['Amount']
-            # Datum formatieren (z.B. 12.05.2024)
             current_ts = row['Timestamp']
             date_str = current_ts.strftime('%d.%m.%Y') if pd.notnull(current_ts) else ""
             
             if name in race_scores:
                 race_scores[name] += amount
             
-            # DataFrame für Renderer
             frame_data = [{'Name': n, 'Pushups': s} for n, s in race_scores.items()]
             frame_df = pd.DataFrame(frame_data)
             
-            # Render mit DATUM
             race_placeholder.markdown(render_track_html(frame_df, display_date=date_str), unsafe_allow_html=True)
             time.sleep(0.5)
 
     st.session_state.has_animated = True
 
 # --- FINAL STATE ---
-# Aktuelles Datum für den Endstand
 today_str = datetime.now().strftime('%d.%m.%Y')
 race_placeholder.markdown(render_track_html(df_totals, today_str), unsafe_allow_html=True)
 
@@ -300,14 +299,10 @@ with st.expander("📝 Protokoll bearbeiten / Fehler korrigieren"):
     st.warning("Achtung: Hier kannst du Einträge löschen oder ändern. Das ändert den Spielstand direkt!")
     
     if not df_logs.empty:
-        # Wir machen eine Kopie, damit der Editor sauber arbeitet
         editable_df = df_logs.copy()
-        
-        # Konvertiere Timestamp zu String für bessere Lesbarkeit im Editor
         if 'Timestamp' in editable_df.columns:
             editable_df['Timestamp'] = editable_df['Timestamp'].astype(str)
 
-        # Der Editor: num_rows="dynamic" erlaubt Löschen/Hinzufügen
         edited_df = st.data_editor(
             editable_df, 
             num_rows="dynamic", 
