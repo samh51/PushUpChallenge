@@ -6,7 +6,7 @@ from streamlit_gsheets import GSheetsConnection
 GOAL = 10000
 
 # 🔴 PASTE YOUR GOOGLE SHEET LINK HERE:
-SHEET_URL = "https://docs.google.com/spreadsheets/d/YOUR_LONG_ID_HERE/edit"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1EYEj7wC8Rdo2gCDP4__PQwknmvX75Y9PRkoDKqA8AUM/edit?gid=0#gid=0"
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Pushup Derby", page_icon="🐎", layout="centered")
