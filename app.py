@@ -446,7 +446,7 @@ if df_totals.empty:
 # --- DATEN VORBEREITUNG (REINIGUNG + GLOBAL CONVERSION) ---
 df_display = df_totals.copy()
 
-# 🔴 FIX: Sofortige Konvertierung der Timestamp-Spalte für ALLE Berechnungen
+# 🔴 FIX: Sofortige Konvertierung der Timestamp-Spalte
 if not df_logs.empty and 'Timestamp' in df_logs.columns:
     df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
 
@@ -491,7 +491,7 @@ if 'last_log' in st.session_state:
     
     del st.session_state.last_log
 
-# --- ANIMATION LOGIC (BASIERT AUF TOTAL) ---
+# --- ANIMATION LOGIC (TAGEWEISE) ---
 if not st.session_state.has_animated and not df_logs.empty:
     
     with skip_btn_placeholder:
@@ -502,36 +502,46 @@ if not st.session_state.has_animated and not df_logs.empty:
     all_names = ["Kevin", "Sämi", "Eric", "Elia"]
     race_scores = {name: 0 for name in all_names}
     
+    # Initiale Start-Position
     initial_df = pd.DataFrame([{'Name': n, 'ScoreTotal': 0} for n in all_names])
     race_placeholder.markdown(render_track_html(initial_df, "Start"), unsafe_allow_html=True)
     time.sleep(0.5)
     
-    # Hier sicherstellen, dass Timestamp Datum ist (wurde oben schon gemacht, aber doppelt hält besser)
+    # Logs sortieren
     df_logs = df_logs.sort_values('Timestamp')
     
-    if 'Amount' in df_logs.columns:
-        df_logs['Amount'] = pd.to_numeric(df_logs['Amount'], errors='coerce').fillna(0)
+    # --- NEUE LOGIK: GRUPPIEREN NACH TAG ---
+    # Wir erstellen eine temporäre Spalte 'Day' (nur Datum, keine Uhrzeit)
+    df_logs['Day'] = df_logs['Timestamp'].dt.date
+    unique_days = df_logs['Day'].dropna().unique()
+    
+    # Durch jeden Tag iterieren
+    for day in unique_days:
+        if st.session_state.has_animated: break
         
-        for index, row in df_logs.iterrows():
-            if st.session_state.has_animated:
-                break
-                
-            name = row['Name']
-            amount = row['Amount']
-            # Animation zeigt IMMER Gesamtfortschritt -> jeder Punkt zählt
+        # Alle Logs dieses Tages holen
+        day_logs = df_logs[df_logs['Day'] == day]
+        
+        # Sicherstellen, dass 'Amount' numerisch ist
+        if 'Amount' in day_logs.columns:
+            day_logs.loc[:, 'Amount'] = pd.to_numeric(day_logs['Amount'], errors='coerce').fillna(0)
             
-            current_ts = row['Timestamp']
-            date_str = current_ts.strftime('%d.%m.%Y') if pd.notnull(current_ts) else ""
+            # Summen für diesen Tag auf die Race-Scores addieren
+            day_sums = day_logs.groupby('Name')['Amount'].sum()
             
-            if amount > 0:
+            # Race Scores updaten
+            for name, added_score in day_sums.items():
                 if name in race_scores:
-                    race_scores[name] += amount
-                
-                frame_data = [{'Name': n, 'ScoreTotal': s} for n, s in race_scores.items()]
-                frame_df = pd.DataFrame(frame_data)
-                
-                race_placeholder.markdown(render_track_html(frame_df, display_date=date_str), unsafe_allow_html=True)
-                time.sleep(0.2) 
+                    race_scores[name] += added_score
+            
+            # Frame rendern (nur 1x pro Tag)
+            frame_data = [{'Name': n, 'ScoreTotal': s} for n, s in race_scores.items()]
+            frame_df = pd.DataFrame(frame_data)
+            
+            date_str = day.strftime('%d.%m.%Y')
+            
+            race_placeholder.markdown(render_track_html(frame_df, display_date=date_str), unsafe_allow_html=True)
+            time.sleep(0.6) # Etwas längere Pause, da wir pro Tag springen
 
     st.session_state.has_animated = True
     
